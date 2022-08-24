@@ -226,6 +226,8 @@ void Update::setup()
   surf->nreact_running = 0;
   nstuck = naxibad = 0;
 
+  
+
   collide_react = collide_react_setup();
   bounce_tally = bounce_setup();
 

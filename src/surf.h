@@ -66,6 +66,7 @@ class Surf : protected Pointers {
                             // rhand rule: Z x (p2-p1) = outward normal
     double norm[3];         // outward normal to line segment
     int transparent;        // 1 if surf is transparent
+    double active_site_fraction; // SGK
   };
 
   struct Tri {
@@ -78,6 +79,7 @@ class Surf : protected Pointers {
                             // rhand rule: (p2-p1) x (p3-p1) = outward normal
     double norm[3];         // outward normal to triangle
     int transparent;        // 1 if surf is transparent
+    double active_site_fraction; // SGK
   };
 
   Line *lines;              // list of lines for surface collisions
@@ -184,6 +186,10 @@ class Surf : protected Pointers {
 
   void compute_line_normal(int);
   void compute_tri_normal(int);
+
+  void assign_line_asf(); // SGK
+  void assign_tri_asf(); // SGK
+
   void quad_corner_point(int, double *, double *, double *);
   void hex_corner_point(int, double *, double *, double *);
 
@@ -342,6 +348,9 @@ class Surf : protected Pointers {
                               int &, int *&, char *&, void *);
   static int rendezvous_tris(int, char *,
                              int &, int *&, char *&, void *);
+
+  // private:
+  //class RanKnuth *random;     // RNG for reaction probabilities
 };
 
 }

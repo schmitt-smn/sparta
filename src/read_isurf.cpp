@@ -130,8 +130,12 @@ void ReadISurf::command(int narg, char **arg)
 
   if (screen && me == 0) fprintf(screen,"Reading isurf file ...\n");
 
+  //printf("read_isurf command 1\n"); // SGK-print
+
   MPI_Barrier(world);
   double time1 = MPI_Wtime();
+
+  //printf("read_isurf command 2\n"); // SGK-print
 
   if (dim == 2) {
     memory->create(cvalues,grid->nlocal,4,"readisurf:cvalues");
@@ -144,6 +148,9 @@ void ReadISurf::command(int narg, char **arg)
       for (int j = 0; j < 8; j++)
         cvalues[i][j] = 0.0;
   }
+
+
+  //printf("read_isurf command 3\n"); // SGK-print
 
   // serial or parallel read of grid corner point file
   // NOTE: need to have a parallel read_types as well
@@ -162,6 +169,8 @@ void ReadISurf::command(int narg, char **arg)
 
   if (readflag == SERIAL) delete hash;
 
+  //printf("read_isurf command 4\n"); // SGK-print
+
   // pass corner point cvalues and type values to FixAblate
   // also pass it the geometry of the 3d grid of cells and the threshold value
   // it will invoke Marchining Cubes/Squares and create triangles
@@ -173,15 +182,23 @@ void ReadISurf::command(int narg, char **arg)
   char *sgroupID = NULL;
   if (sgrouparg) sgroupID = arg[sgrouparg];
 
+  //printf("read_isurf command 5\n"); // SGK-print
+
   ablate->store_corners(nx,ny,nz,corner,xyzsize,
                         cvalues,tvalues,thresh,sgroupID,pushflag);
 
+  //printf("read_isurf command 5.1\n"); // SGK-print
+
   if (ablate->nevery == 0) modify->delete_fix(ablateID);
+
+  //printf("read_isurf command 5.2\n"); // SGK-print
 
   MPI_Barrier(world);
   double time3 = MPI_Wtime();
 
   // stats
+
+  //printf("read_isurf command 6\n"); // SGK-print
 
   double time_total = time3-time1;
 

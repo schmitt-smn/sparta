@@ -30,6 +30,11 @@
 #include "memory.h"
 #include "error.h"
 
+// SGK
+//#include "random_mars.h"
+//#include "random_knuth.h" 
+#include "update.h"
+
 using namespace SPARTA_NS;
 using namespace MathConst;
 
@@ -112,6 +117,11 @@ Surf::Surf(SPARTA *sparta) : Pointers(sparta)
 
   hash = new MySurfHash();
   hashfilled = 0;
+
+  // SGK
+  //random = new RanKnuth(update->ranmaster->uniform());
+  //double seed = update->ranmaster->uniform();
+  //random->reset(seed,comm->me,100);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -157,6 +167,8 @@ Surf::~Surf()
   memory->sfree(edvec);
   memory->sfree(edarray);
   memory->destroy(edcol);
+
+  //delete random; // SGK
 }
 
 /* ---------------------------------------------------------------------- */
@@ -413,6 +425,7 @@ void Surf::add_line(surfint id, int itype, double *p1, double *p2)
   lines[nlocal].p2[1] = p2[1];
   lines[nlocal].p2[2] = 0.0;
   lines[nlocal].transparent = 0;
+  lines[nlocal].active_site_fraction = 0.0;
   nlocal++;
 }
 
@@ -472,6 +485,7 @@ void Surf::add_line_own(surfint id, int itype, double *p1, double *p2)
   mylines[m].p2[1] = p2[1];
   mylines[m].p2[2] = 0.0;
   mylines[m].transparent = 0;
+  mylines[m].active_site_fraction = 0.0;
 }
 
 /* ----------------------------------------------------------------------
@@ -499,6 +513,7 @@ void Surf::add_line_temporary(surfint id, int itype, double *p1, double *p2)
   tmplines[ntmp].p2[1] = p2[1];
   tmplines[ntmp].p2[2] = 0.0;
   tmplines[ntmp].transparent = 0;
+  tmplines[ntmp].active_site_fraction = 0.0;
   ntmp++;
 }
 
@@ -531,6 +546,7 @@ void Surf::add_tri(surfint id, int itype, double *p1, double *p2, double *p3)
   tris[nlocal].p3[1] = p3[1];
   tris[nlocal].p3[2] = p3[2];
   tris[nlocal].transparent = 0;
+  tris[nlocal].active_site_fraction = 0.0;
   nlocal++;
 }
 
@@ -593,6 +609,7 @@ void Surf::add_tri_own(surfint id, int itype, double *p1, double *p2, double *p3
   mytris[m].p3[1] = p3[1];
   mytris[m].p3[2] = p3[2];
   mytris[m].transparent = 0;
+  mytris[m].active_site_fraction = 0.0;
 }
 
 /* ----------------------------------------------------------------------
@@ -628,6 +645,7 @@ void Surf::add_tri_own_clip(surfint id, int itype,
   mytris[nown].p3[1] = p3[1];
   mytris[nown].p3[2] = p3[2];
   mytris[nown].transparent = 0;
+  mytris[nown].active_site_fraction = 0.0;
   nown++;
 }
 
@@ -660,6 +678,7 @@ void Surf::add_tri_temporary(surfint id, int itype,
   tmptris[ntmp].p3[1] = p3[1];
   tmptris[ntmp].p3[2] = p3[2];
   tmptris[ntmp].transparent = 0;
+  tmptris[ntmp].active_site_fraction = 0.0;
   ntmp++;
 }
 
@@ -882,6 +901,49 @@ void Surf::compute_line_normal(int old)
 }
 
 /* ----------------------------------------------------------------------
+   assign active_site_fraction for each line element //SGK
+------------------------------------------------------------------------- */
+
+void Surf::assign_line_asf()
+{
+  /*
+  int n;
+  Line *newlines;
+
+  if (!implicit && distributed) {
+    newlines = mylines;
+    n = nown;
+  } else {
+    newlines = lines;
+    n = nlocal;
+  }
+
+  for (int i = old; i < n; i++) {
+    //double val = 0.0;
+    //if (random->uniform() > 0.5) val = 0.1*random->uniform();
+    //newlines[i].active_site_fraction = val;
+
+    newlines[i].active_site_fraction = grid->cinfo[newlines[i].id].active_site_fraction;
+
+  }
+  */
+
+  //Line *newlines;
+  Grid::ChildCell *cells = grid->cells;
+  Grid::ChildInfo *cinfo = grid->cinfo;
+
+  for (int icell = 0; icell < grid->nlocal; icell++) {
+    if (cells[icell].nsplit <= 0) continue;
+    if (cells[icell].nsurf <= 0) continue;
+
+    for (int j = 0; j < cells[icell].nsurf; j++) {
+      int isurf = cells[icell].csurfs[j];
+      lines[isurf].active_site_fraction = cinfo[icell].active_site_fraction;
+    }
+  }
+}
+
+/* ----------------------------------------------------------------------
    compute unit outward normal vectors of all lines starting at Nold
    outward normal = (p2-p1) x (p3-p1)
 ------------------------------------------------------------------------- */
@@ -908,6 +970,49 @@ void Surf::compute_tri_normal(int old)
     MathExtra::cross3(delta12,delta13,newtris[i].norm);
     MathExtra::norm3(newtris[i].norm);
   }
+}
+
+/* ----------------------------------------------------------------------
+   assign active_site_fraction for each tri element // SGK
+------------------------------------------------------------------------- */
+
+void Surf::assign_tri_asf()
+{
+/*  
+  int n;
+  Tri *newtris;
+
+  if (!implicit && distributed) {
+    newtris = mytris;
+    n = nown;
+  } else {
+    newtris = tris;
+    n = nlocal;
+  }
+
+  for (int i = old; i < n; i++) {
+    //double val = 0.0;
+    //if (random->uniform() > 0.5) val = 0.1*random->uniform();
+    //newtris[i].active_site_fraction = val;
+
+    newtris[i].active_site_fraction = grid->cinfo[newtris[i].id].active_site_fraction;
+  }
+  */
+
+  //Tri *newtris;
+  Grid::ChildCell *cells = grid->cells;
+  Grid::ChildInfo *cinfo = grid->cinfo;
+
+  for (int icell = 0; icell < grid->nlocal; icell++) {
+    if (cells[icell].nsplit <= 0) continue;
+    if (cells[icell].nsurf <= 0) continue;
+
+    for (int j = 0; j < cells[icell].nsurf; j++) {
+      int isurf = cells[icell].csurfs[j];
+      tris[isurf].active_site_fraction = cinfo[icell].active_site_fraction;
+    }
+  }
+
 }
 
 /* ----------------------------------------------------------------------

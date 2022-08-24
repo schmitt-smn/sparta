@@ -153,6 +153,9 @@ void ReadRestart::command(int narg, char **arg)
   if (surf->exist) {
     if (domain->dimension == 2) surf->compute_line_normal(0);
     if (domain->dimension == 3) surf->compute_tri_normal(0);
+
+    if (domain->dimension == 2) surf->assign_line_asf(); // SGK
+    if (domain->dimension == 3) surf->assign_tri_asf();
   }
 
   // read file layout info

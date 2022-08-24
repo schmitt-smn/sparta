@@ -277,6 +277,8 @@ void MoveSurf::move_lines(double fraction, Surf::Line *origlines)
 
   surf->compute_line_normal(0);
 
+  surf->assign_line_asf(); // SGK
+
   // check that all points are still inside simulation box
 
   surf->check_point_inside(0);
@@ -302,6 +304,8 @@ void MoveSurf::move_tris(double fraction, Surf::Tri *origtris)
   if (connectflag && groupbit != 1) connect_3d_post();
 
   surf->compute_tri_normal(0);
+
+  surf->assign_tri_asf(); // SGK
 
   // check that all points are still inside simulation box
 

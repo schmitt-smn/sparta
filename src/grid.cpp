@@ -29,8 +29,12 @@
 #include "memory.h"
 #include "error.h"
 
+//#include "random_mars.h"
+//#include "random_knuth.h" 
+
 // DEBUG
 #include "update.h"
+
 
 using namespace SPARTA_NS;
 using namespace MathConst;
@@ -134,6 +138,12 @@ Grid::Grid(SPARTA *sparta) : Pointers(sparta)
   hashfilled = 0;
 
   copy = copymode = 0;
+
+  // SGK
+  printf("check grid.cpp init\n");
+  //random = new RanKnuth(update->ranmaster->uniform());
+  //double seed = update->ranmaster->uniform();
+  //random->reset(seed,comm->me,100);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -158,6 +168,8 @@ Grid::~Grid()
   delete csplits;
   delete csubs;
   delete hash;
+
+  //delete random; // SGK
 }
 
 /* ----------------------------------------------------------------------
@@ -245,6 +257,11 @@ void Grid::add_child_cell(cellint id, int level, double *lo, double *hi)
   ci->type = OUTSIDE;
   for (int i = 0; i < ncorner; i++) ci->corner[i] = UNKNOWN;
   ci->weight = 1.0;
+
+  // SGK
+  ci->active_site_fraction = assign_cell_asf_new();
+  //ci->active_site_fraction = 0.0;
+  // KSG
 
   if (domain->dimension == 3)
     ci->volume = (hi[0]-lo[0]) * (hi[1]-lo[1]) * (hi[2]-lo[2]);
@@ -1942,6 +1959,20 @@ void Grid::weight_one(int icell)
     hi = cells[icell].hi;
     cinfo[icell].weight = 0.5*(hi[1]+lo[1]);
   }
+}
+
+
+double Grid::assign_cell_asf_new()
+{
+    double val = 0.1;
+    //if (random->uniform() < 0.1) val = 0.1*random->uniform();
+    return val;
+}
+
+
+void Grid::assign_cell_asf_neigh(int icell)
+{
+    cinfo[icell].active_site_fraction = 0.1;
 }
 
 ///////////////////////////////////////////////////////////////////////////

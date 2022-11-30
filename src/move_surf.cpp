@@ -276,7 +276,7 @@ void MoveSurf::move_lines(double fraction, Surf::Line *origlines)
   if (connectflag && groupbit != 1) connect_2d_post();
 
   surf->compute_line_normal(0);
-
+  printf("Simon: assign_line_asf move_surf");
   surf->assign_line_asf(); // SGK
 
   // check that all points are still inside simulation box

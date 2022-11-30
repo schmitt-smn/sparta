@@ -451,6 +451,16 @@ void FixAblate::end_of_step()
   // re-create implicit surfs
 
   create_surfs(0);
+
+  // assign active site fraction of new surfs
+  if (dim == 2) {
+    printf("read_isurf: assign_line_asf\n");
+    surf->assign_line_asf();
+  }
+  else {
+    printf("read_isurf: assign_tris_asf\n");
+    surf->assign_tri_asf();
+  }
 }
 
 /* ---------------------------------------------------------------------- */
@@ -527,10 +537,10 @@ void FixAblate::create_surfs(int outflag)
   else surf->compute_tri_normal(0);
 
    // compute normals of new surfs // SGK
-  //printf("ablate create_srufs 9\n"); // SGK-print
-
-  if (dim == 2) surf->assign_line_asf();
-  else surf->assign_tri_asf();
+  // //printf("ablate create_srufs 9\n"); // SGK-print
+  // printf("Simon: assign_line_asf ablate");
+  // if (dim == 2) surf->assign_line_asf();
+  // else surf->assign_tri_asf();
 
   //printf("ablate create_srufs 10\n"); // SGK-print
   // MC->cleanup() checks for consistent triangles on grid cell faces
@@ -953,8 +963,15 @@ void FixAblate::update_cell_asf()
         total_area += area;
         total_active_sites += lines[isurf].active_site_fraction*area;
       }
+      //printf("Active site fraction=%f\n",total_active_sites/total_area);
       cinfo[icell].active_site_fraction = total_active_sites/total_area;
     }
+    // for (int icell = 0; icell < grid->nlocal; icell++) {
+    //   for (int j = 0; j < cells[icell].nsurf; j++) {
+    //     int isurf = cells[icell].csurfs[j];
+    //     printf("%f\n",lines[isurf].active_site_fraction);
+    //   }
+    // }
   } else {
     for (int icell = 0; icell < nglocal; icell++) {
       if (!(cinfo[icell].mask & groupbit)) continue;
@@ -1127,6 +1144,8 @@ void FixAblate::propagate_cell_asf()
     icell = ilocal - nglocal;
     if (cells[icell].nsurf > 0) grid->assign_cell_asf_neigh(icell);
   }
+  
+  
 
 }
 // KSG

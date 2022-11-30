@@ -187,7 +187,9 @@ class Surf : protected Pointers {
   void compute_line_normal(int);
   void compute_tri_normal(int);
 
+  void assign_line_asf_init(); // SGK
   void assign_line_asf(); // SGK
+  void assign_tri_asf_init(); // SGK
   void assign_tri_asf(); // SGK
 
   void quad_corner_point(int, double *, double *, double *);

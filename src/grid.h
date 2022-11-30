@@ -223,7 +223,7 @@ class Grid : protected Pointers {
   void type_check(int flag=1);
   void weight(int, char **);
   void weight_one(int);
-  double assign_cell_asf_new(); // SGK
+  void assign_cell_asf_new(int); // SGK
   void assign_cell_asf_neigh(int); // SGK
 
   void refine_cell(int, int *, class Cut2d *, class Cut3d *);

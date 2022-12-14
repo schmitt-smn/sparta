@@ -259,8 +259,8 @@ void Grid::add_child_cell(cellint id, int level, double *lo, double *hi)
   ci->weight = 1.0;
 
   // SGK
-  ci->active_site_fraction = assign_cell_asf_new();
-  //ci->active_site_fraction = 0.0;
+  // ci->active_site_fraction = assign_cell_asf_new();
+  ci->active_site_fraction = 0.0;
   // KSG
 
   if (domain->dimension == 3)
@@ -1962,11 +1962,12 @@ void Grid::weight_one(int icell)
 }
 
 
-double Grid::assign_cell_asf_new()
+void Grid::assign_cell_asf_new(int icell)
 {
-    double val = 0.1;
-    //if (random->uniform() < 0.1) val = 0.1*random->uniform();
-    return val;
+    cinfo[icell].active_site_fraction = 1.0;
+    // double val = 0.1;
+    // //if (random->uniform() < 0.1) val = 0.1*random->uniform();
+    // return val;
 }
 
 

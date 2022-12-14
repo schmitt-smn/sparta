@@ -196,9 +196,18 @@ void ReadISurf::command(int narg, char **arg)
   MPI_Barrier(world);
   double time3 = MPI_Wtime();
 
-  // stats
+  
+  // assign active site fraction of new surfs
+  if (dim == 2) {
+    printf("read_isurf: assign_line_asf_init\n");
+    surf->assign_line_asf_init();
+  }
+  else {
+    printf("read_isurf: assign_tris_asf_init\n");
+    surf->assign_tri_asf_init();
+  }
 
-  //printf("read_isurf command 6\n"); // SGK-print
+  // stats
 
   double time_total = time3-time1;
 

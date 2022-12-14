@@ -119,7 +119,7 @@ int SurfReactProb::react(Particle::OnePart *&ip, int isurf, double *,
 {
   int n = reactions[ip->ispecies].n;
   if (n == 0) return 0;
-
+  //printf("reaction");
   int *list = reactions[ip->ispecies].list;
 
   // probablity to compare to reaction probability
@@ -150,9 +150,9 @@ int SurfReactProb::react(Particle::OnePart *&ip, int isurf, double *,
   }
   
   if (random->uniform() < asf) {
-    site_factor = 100.0; 
+    site_factor = 1000000000000.0; 
     active_site = 1;
-    //printf("active site\n"); //SGK-print
+    // printf("active site\n"); //SGK-print
   }
   // KSG
 
@@ -169,8 +169,9 @@ int SurfReactProb::react(Particle::OnePart *&ip, int isurf, double *,
     r = &rlist[list[i]];
     react_prob += r->coeff[0]*site_factor; // SGK
     //react_prob += r->coeff[0]; // original code
-
     if (react_prob > random_prob) {
+      // printf("react prob %f\n",react_prob);
+      // printf("random prob %f\n",random_prob);
       nsingle++;
       tally_single[list[i]]++;
       switch (r->type) {

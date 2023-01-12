@@ -154,10 +154,10 @@ void ReadSurf::command(int narg, char **arg)
   if (dim == 2) surf->compute_line_normal(nsurf_old);
   else surf->compute_tri_normal(nsurf_old);
 
-  // assign active site fraction of new surfs //SGK
+  // // assign active site fraction of new surfs //SGK
 
-  if (dim == 2) surf->assign_line_asf();
-  else surf->assign_tri_asf();
+  // if (dim == 2) surf->assign_line_asf();
+  // else surf->assign_tri_asf();
 
   // error check on new surfs
   // all points must be inside or on surface of simulation box

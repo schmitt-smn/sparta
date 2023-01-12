@@ -134,7 +134,7 @@ int SurfReactProb::react(Particle::OnePart *&ip, int isurf, double *,
   Surf::Tri *tris = surf->tris;
 
   double asf = 0.0;
-  double site_factor = 1.0;
+  //double site_factor = 1.0;
   int active_site = 0;
   double new_asf = 0.0;
   double site_density,area,len1;
@@ -150,7 +150,8 @@ int SurfReactProb::react(Particle::OnePart *&ip, int isurf, double *,
   }
   
   if (random->uniform() < asf) {
-    site_factor = 1000000000000.0; 
+    //site_factor = 1000000000000.0; 
+    //printf("site_factor = %g\n",surf->asf_site_factor);
     active_site = 1;
     // printf("active site\n"); //SGK-print
   }
@@ -167,7 +168,7 @@ int SurfReactProb::react(Particle::OnePart *&ip, int isurf, double *,
 
   for (int i = 0; i < n; i++) {
     r = &rlist[list[i]];
-    react_prob += r->coeff[0]*site_factor; // SGK
+    react_prob += r->coeff[0]*surf->asf_site_factor; // SGK
     //react_prob += r->coeff[0]; // original code
     if (react_prob > random_prob) {
       // printf("react prob %f\n",react_prob);

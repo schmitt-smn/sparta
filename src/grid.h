@@ -223,7 +223,7 @@ class Grid : protected Pointers {
   void type_check(int flag=1);
   void weight(int, char **);
   void weight_one(int);
-  void assign_cell_asf_new(int); // SGK
+  void assign_cell_asf_init(int); // SGK
   void assign_cell_asf_neigh(int); // SGK
 
   void refine_cell(int, int *, class Cut2d *, class Cut3d *);
@@ -307,6 +307,9 @@ class Grid : protected Pointers {
     nmask |= flag << neighshift[iface];
     return nmask;
   }
+
+ //private:
+ // class RanKnuth *random;     // SGK RNG for reaction probabilities
 
  protected:
   int me;
@@ -416,8 +419,6 @@ class Grid : protected Pointers {
 
   static int rendezvous_surfrequest(int, char *, int &, int *&, char *&, void *);
 
-  //   private:
-  //class RanKnuth *random;     // RNG for reaction probabilities
 };
 
 }

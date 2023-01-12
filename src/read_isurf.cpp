@@ -197,14 +197,17 @@ void ReadISurf::command(int narg, char **arg)
   double time3 = MPI_Wtime();
 
   
-  // assign active site fraction of new surfs
-  if (dim == 2) {
-    printf("read_isurf: assign_line_asf_init\n");
-    surf->assign_line_asf_init();
-  }
-  else {
-    printf("read_isurf: assign_tris_asf_init\n");
-    surf->assign_tri_asf_init();
+  // SGK assign active site fraction of new surfs
+
+  if (surf->asf_flag) {
+    if (dim == 2) {
+      //printf("read_isurf: assign_line_asf_init\n");
+      surf->assign_line_asf_init();
+    }
+    else {
+      //printf("read_isurf: assign_tris_asf_init\n");
+      surf->assign_tri_asf_init();
+    }
   }
 
   // stats
@@ -840,6 +843,48 @@ void ReadISurf::process_args(int narg, char **arg)
       else if (strcmp(arg[iarg+1],"parallel") == 0) readflag = PARALLEL;
       else error->all(FLERR,"Invalid read_isurf command");
       iarg += 2;
-    } else error->all(FLERR,"Invalid read_isurf command");
+    } 
+    // SGK
+    else if (strcmp(arg[iarg],"asf") == 0)  {
+      if (iarg+5 > narg) error->all(FLERR,"Invalid read_isurf command");
+
+      //printf("flag = %d\n",surf->asf_flag);
+      //printf("defect_density = %g\n",surf->asf_defect_density);
+      //printf("defect_frequency = %d\n",surf->asf_defect_freq);
+      //printf("init_val = %g\n",surf->asf_init_val);
+      //printf("site_factor = %g\n",surf->asf_site_factor);
+
+      surf->asf_flag = 1;
+      surf->asf_site_factor = input->numeric(FLERR,arg[iarg+1]);
+      surf->asf_init_val = input->numeric(FLERR,arg[iarg+2]);
+
+      if (me == 0) {
+        //printf("flag = %d\n",surf->asf_flag);
+        printf("\nActive site fraction (ASF) module - input information\n");
+        printf("\tsite_factor = %g\n",surf->asf_site_factor);
+        printf("\tinit_val = %g\n",surf->asf_init_val);
+      }
+
+      if (strcmp(arg[iarg+3],"freq") == 0) {
+        surf->asf_defect_input_type = 0; 
+        surf->asf_defect_freq = input->inumeric(FLERR,arg[iarg+4]);
+        if (me == 0) printf("\tdefect_frequency = %d\n\n",surf->asf_defect_freq);
+      }
+      else if (strcmp(arg[iarg+3],"den") == 0) {
+        surf->asf_defect_input_type = 1; 
+        surf->asf_defect_density = input->numeric(FLERR,arg[iarg+4]);
+        if (me == 0) printf("\tdefect_density = %g\n\n",surf->asf_defect_density);
+      }
+      else error->all(FLERR,"Invalid read_isurf command");
+
+      
+
+      if (surf->asf_defect_freq <= 0) error->all(FLERR,"Invalid read_isurf command");
+      if (surf->asf_defect_density < 0) error->all(FLERR,"Invalid read_isurf command");
+
+      iarg += 5;
+    }
+    // KSG 
+    else error->all(FLERR,"Invalid read_isurf command");
   }
 }

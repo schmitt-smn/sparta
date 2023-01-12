@@ -140,7 +140,7 @@ Grid::Grid(SPARTA *sparta) : Pointers(sparta)
   copy = copymode = 0;
 
   // SGK
-  printf("check grid.cpp init\n");
+  //printf("check grid.cpp init\n");
   //random = new RanKnuth(update->ranmaster->uniform());
   //double seed = update->ranmaster->uniform();
   //random->reset(seed,comm->me,100);
@@ -1962,18 +1962,20 @@ void Grid::weight_one(int icell)
 }
 
 
-void Grid::assign_cell_asf_new(int icell)
+void Grid::assign_cell_asf_init(int icell)
 {
-    cinfo[icell].active_site_fraction = 1.0;
-    // double val = 0.1;
-    // //if (random->uniform() < 0.1) val = 0.1*random->uniform();
-    // return val;
+  cinfo[icell].active_site_fraction = surf->asf_init_val;
+  // cinfo[icell].active_site_fraction = 1.0;
+  // double val = 0.1;
+  // //if (random->uniform() < 0.1) val = 0.1*random->uniform();
+  // return val;
 }
 
 
 void Grid::assign_cell_asf_neigh(int icell)
 {
-    cinfo[icell].active_site_fraction = 0.1;
+  cinfo[icell].active_site_fraction = surf->asf_init_val;
+  //cinfo[icell].active_site_fraction = 0.1;
 }
 
 ///////////////////////////////////////////////////////////////////////////

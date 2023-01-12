@@ -429,7 +429,7 @@ void FixAblate::init()
 void FixAblate::end_of_step()
 {
   // update active_site_fraction value of cell // SGK
-  update_cell_asf();
+  if (surf->asf_flag) update_cell_asf();
 
   // set per-cell delta vector randomly or from compute/fix source
 
@@ -446,20 +446,22 @@ void FixAblate::end_of_step()
   epsilon_adjust();
 
   // propagate active_site_fraction value to neighbor cells of depleted cells
-  propagate_cell_asf();
+  if (surf->asf_flag) propagate_cell_asf();
 
   // re-create implicit surfs
 
   create_surfs(0);
 
   // assign active site fraction of new surfs
-  if (dim == 2) {
-    printf("read_isurf: assign_line_asf\n");
-    surf->assign_line_asf();
-  }
-  else {
-    printf("read_isurf: assign_tris_asf\n");
-    surf->assign_tri_asf();
+  if (surf->asf_flag) {  
+    if (dim == 2) {
+      //printf("fix_ablate: assign_line_asf\n");
+      surf->assign_line_asf();
+    }
+    else {
+      //printf("fix_ablate: assign_tris_asf\n");
+      surf->assign_tri_asf();
+    }
   }
 }
 
@@ -994,12 +996,12 @@ void FixAblate::update_cell_asf()
 // KSG
 
 // SGK
-// update the value of the active site fraction for all the cells
+// propagate the active sites to the neighboring cells
 // by averaging the asf value of all the surface elements within each cell
 void FixAblate::propagate_cell_asf()
 {
   
-  printf("propagate cell asf\n"); //SGK-print
+  //printf("propagate cell asf\n"); //SGK-print
 
   int i,j,m,n,ix,iy,iz,ixfirst,iyfirst,izfirst,jx,jy,jz;
   int icell,ifirst,jcell,proc,ilocal;

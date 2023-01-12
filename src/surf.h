@@ -116,6 +116,15 @@ class Surf : protected Pointers {
   double pushlo,pushhi;     // lo/hi ranges to push on
   double pushvalue;         // new position to push to
 
+  // SGK
+  int asf_flag;
+  int asf_defect_input_type; 
+  double asf_defect_density;   // input defect density for the active site fraction feature
+  int asf_defect_freq;       // input defect frequency for the active site fraction feature
+  double asf_init_val;         // input asf initial value for the active site fraction feature
+  double asf_site_factor;      // input site factor for the active site fraction feature
+  // KSG
+
   // extra custom vectors/arrays for per-surf data
   // ncustom > 0 if there are any extra arrays
   // custom attributes are created by various commands
@@ -254,6 +263,12 @@ class Surf : protected Pointers {
   virtual void grow_temporary(int);
   bigint memory_usage();
 
+
+ private:
+  class RanKnuth *random;     // SGK RNG for reaction probabilities
+  double rand_seed;
+
+
  protected:
   int me,nprocs;
   int maxsc;                // max # of models in sc
@@ -351,8 +366,6 @@ class Surf : protected Pointers {
   static int rendezvous_tris(int, char *,
                              int &, int *&, char *&, void *);
 
-  // private:
-  //class RanKnuth *random;     // RNG for reaction probabilities
 };
 
 }

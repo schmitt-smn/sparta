@@ -159,6 +159,8 @@ class Grid : protected Pointers {
     double volume;            // flow volume of cell or sub cell
                               // entire cell volume for split cell
     double weight;            // fnum weighting for this cell
+
+    double active_site_fraction; // SGK
   };
 
   // additional info for owned or ghost split cell or sub cell
@@ -235,6 +237,8 @@ class Grid : protected Pointers {
   void type_check(int flag=1);
   void weight(int, char **);
   void weight_one(int);
+  void assign_cell_asf_init(int); // SGK
+  void assign_cell_asf_neigh(int); // SGK
 
   void refine_cell(int, int *, class Cut2d *, class Cut3d *);
   void coarsen_cell(cellint, int, double *, double *,
@@ -332,6 +336,9 @@ class Grid : protected Pointers {
     nmask |= flag << neighshift[iface];
     return nmask;
   }
+
+ //private:
+ // class RanKnuth *random;     // SGK RNG for reaction probabilities
 
  protected:
   int me;
@@ -465,6 +472,7 @@ class Grid : protected Pointers {
   // callback functions for rendezvous communication
 
   static int rendezvous_surfrequest(int, char *, int &, int *&, char *&, void *);
+
 };
 
 }

@@ -90,6 +90,17 @@ ComputePropertyGrid::ComputePropertyGrid(SPARTA *sparta, int narg, char **arg) :
     } else if (strcmp(arg[iarg],"vol") == 0) {
       pack_choice[i] = &ComputePropertyGrid::pack_vol;
       index[i] = 11;
+    // start SS
+    } else if (strcmp(arg[iarg],"actarea") == 0) {
+      pack_choice[i] = &ComputePropertyGrid::pack_actarea;
+      index[i] = 12;
+    } else if (strcmp(arg[iarg],"area") == 0) {
+      pack_choice[i] = &ComputePropertyGrid::pack_area;
+      index[i] = 13;
+    } else if (strcmp(arg[iarg],"asf") == 0) {
+      pack_choice[i] = &ComputePropertyGrid::pack_asf;
+      index[i] = 14;
+    // end SS
     } else error->all(FLERR,"Invalid keyword in compute property/grid command");
   }
 
@@ -346,3 +357,109 @@ void ComputePropertyGrid::pack_vol(int n)
     n += nvalues;
   }
 }
+
+/* ---------------------------------------------------------------------- */
+// start SS
+void ComputePropertyGrid::pack_actarea(int n)
+{
+  Grid::ChildCell *cells = grid->cells;
+  Grid::ChildInfo *cinfo = grid->cinfo;
+  Surf::Tri *tris = surf->tris;
+  Surf::Line *lines = surf->lines;
+  int isurf;
+  double area;
+  double len1;
+
+  for (int i = 0; i < nglocal; i++) {
+    double total_area = 0;
+    double total_actarea = 0;
+    if (cinfo[i].mask & groupbit) {
+      for (int j = 0; j < cells[i].nsurf; j++) {
+        isurf = cells[i].csurfs[j];
+        area = surf->tri_size(isurf,len1);
+        // printf("area=%f\n",area);
+        total_actarea += tris[isurf].active_site_fraction*area;
+        total_area += area;
+        // total_active_sites += tris[isurf].active_site_fraction*area;
+      }
+      buf[n] = total_actarea;
+    }
+    else buf[n] = 0.0;
+    n += nvalues;
+  }
+}
+
+void ComputePropertyGrid::pack_area(int n)
+{
+  Grid::ChildCell *cells = grid->cells;
+  Grid::ChildInfo *cinfo = grid->cinfo;
+  Surf::Tri *tris = surf->tris;
+  Surf::Line *lines = surf->lines;
+  int isurf;
+  double area;
+  double len1;
+
+  for (int i = 0; i < nglocal; i++) {
+    double total_area = 0;
+    double total_actarea = 0;
+    if (cinfo[i].mask & groupbit) {
+      for (int j = 0; j < cells[i].nsurf; j++) {
+        isurf = cells[i].csurfs[j];
+        area = surf->tri_size(isurf,len1);
+        // printf("area=%f\n",area);
+        total_actarea += tris[isurf].active_site_fraction*area;
+        total_area += area;
+        // total_active_sites += tris[isurf].active_site_fraction*area;
+      }
+      buf[n] = total_area;
+    }
+    else buf[n] = 0.0;
+    n += nvalues;
+  }
+}
+
+void ComputePropertyGrid::pack_asf(int n)
+{
+  Grid::ChildCell *cells = grid->cells;
+  Grid::ChildInfo *cinfo = grid->cinfo;
+  Surf::Tri *tris = surf->tris;
+  Surf::Line *lines = surf->lines;
+  int isurf;
+  double area;
+  double len1;
+
+  for (int i = 0; i < nglocal; i++) {
+    double total_area = 0;
+    double total_actarea = 0;
+    if (cinfo[i].mask & groupbit) {
+      for (int j = 0; j < cells[i].nsurf; j++) {
+        isurf = cells[i].csurfs[j];
+        area = surf->tri_size(isurf,len1);
+        // printf("area=%f\n",area);
+        total_actarea += tris[isurf].active_site_fraction*area;
+        total_area += area;
+        // total_active_sites += tris[isurf].active_site_fraction*area;
+      }
+      if (total_area == 0) buf[n] = 0;
+      else buf[n] = total_actarea/total_area;
+    }
+    else buf[n] = 0.0;
+    n += nvalues;
+  }
+}
+
+// else {
+//     for (int icell = 0; icell < nglocal; icell++) {
+//       if (!(cinfo[icell].mask & groupbit)) continue;
+//       if (cells[icell].nsplit <= 0) continue;
+//       if (cinfo[icell].type != OVERLAP) continue;
+//       double total_area = 0.0;
+//       double total_active_sites = 0.0;
+//       for (int j = 0; j < cells[icell].nsurf; j++) {
+//         isurf = cells[icell].csurfs[j];
+//         area = surf->tri_size(isurf,len1);
+//         total_area += area;
+//         total_active_sites += tris[isurf].active_site_fraction*area;
+//       }
+//       cinfo[icell].active_site_fraction = total_active_sites/total_area;
+// end SS

@@ -130,8 +130,12 @@ void ReadISurf::command(int narg, char **arg)
 
   if (screen && me == 0) fprintf(screen,"Reading isurf file ...\n");
 
+  //printf("read_isurf command 1\n"); // SGK-print
+
   MPI_Barrier(world);
   double time1 = MPI_Wtime();
+
+  //printf("read_isurf command 2\n"); // SGK-print
 
   if (dim == 2) {
     memory->create(cvalues,grid->nlocal,4,"readisurf:cvalues");
@@ -144,6 +148,9 @@ void ReadISurf::command(int narg, char **arg)
       for (int j = 0; j < 8; j++)
         cvalues[i][j] = 0.0;
   }
+
+
+  //printf("read_isurf command 3\n"); // SGK-print
 
   // serial or parallel read of grid corner point file
   // NOTE: need to have a parallel read_types as well
@@ -162,6 +169,8 @@ void ReadISurf::command(int narg, char **arg)
 
   if (readflag == SERIAL) delete hash;
 
+  //printf("read_isurf command 4\n"); // SGK-print
+
   // pass corner point cvalues and type values to FixAblate
   // also pass it the geometry of the 3d grid of cells and the threshold value
   // it will invoke Marchining Cubes/Squares and create triangles
@@ -173,13 +182,33 @@ void ReadISurf::command(int narg, char **arg)
   char *sgroupID = NULL;
   if (sgrouparg) sgroupID = arg[sgrouparg];
 
+  //printf("read_isurf command 5\n"); // SGK-print
+
   ablate->store_corners(nx,ny,nz,corner,xyzsize,
                         cvalues,tvalues,thresh,sgroupID,pushflag);
 
+  //printf("read_isurf command 5.1\n"); // SGK-print
+
   if (ablate->nevery == 0) modify->delete_fix(ablateID);
+
+  //printf("read_isurf command 5.2\n"); // SGK-print
 
   MPI_Barrier(world);
   double time3 = MPI_Wtime();
+
+  
+  // SGK assign active site fraction of new surfs
+
+  if (surf->asf_flag) {
+    if (dim == 2) {
+      //printf("read_isurf: assign_line_asf_init\n");
+      surf->assign_line_asf_init();
+    }
+    else {
+      //printf("read_isurf: assign_tris_asf_init\n");
+      surf->assign_tri_asf_init();
+    }
+  }
 
   // stats
 
@@ -814,6 +843,65 @@ void ReadISurf::process_args(int narg, char **arg)
       else if (strcmp(arg[iarg+1],"parallel") == 0) readflag = PARALLEL;
       else error->all(FLERR,"Invalid read_isurf command");
       iarg += 2;
-    } else error->all(FLERR,"Invalid read_isurf command");
+    } 
+    // SGK
+    else if (strcmp(arg[iarg],"asf") == 0)  {
+      if (iarg+5 > narg) error->all(FLERR,"Invalid read_isurf command");
+
+      //printf("flag = %d\n",surf->asf_flag);
+      //printf("defect_density = %g\n",surf->asf_defect_density);
+      //printf("defect_frequency = %d\n",surf->asf_defect_freq);
+      //printf("init_val = %g\n",surf->asf_init_val);
+      //printf("site_factor = %g\n",surf->asf_site_factor);
+
+      surf->asf_flag = 1;
+      surf->asf_site_factor = input->numeric(FLERR,arg[iarg+1]);
+      surf->asf_init_val = input->numeric(FLERR,arg[iarg+2]);
+
+      if (me == 0) {
+        //printf("flag = %d\n",surf->asf_flag);
+        printf("\nActive site fraction (ASF) module - input information\n");
+        printf("\tsite_factor = %g\n",surf->asf_site_factor);
+        printf("\tinit_val = %g\n",surf->asf_init_val);
+      }
+
+      if (strcmp(arg[iarg+3],"freq") == 0) {
+        surf->asf_defect_input_type = 0; 
+        surf->asf_defect_freq = input->inumeric(FLERR,arg[iarg+4]);
+        if (me == 0) printf("\tdefect_frequency = %d\n\n",surf->asf_defect_freq);
+      }
+      else if (strcmp(arg[iarg+3],"den") == 0) {
+        surf->asf_defect_input_type = 1; 
+        surf->asf_defect_density = input->numeric(FLERR,arg[iarg+4]);
+        if (me == 0) printf("\tdefect_density = %g\n\n",surf->asf_defect_density);
+      }
+      // SS start
+      else if (strcmp(arg[iarg+3],"single") == 0) {
+        surf->asf_defect_input_type = 2; 
+        surf->asf_defect_x = input->numeric(FLERR,arg[iarg+4]);
+        surf->asf_defect_y = input->numeric(FLERR,arg[iarg+5]);
+        surf->asf_defect_z = input->numeric(FLERR,arg[iarg+6]);
+        if (me == 0) printf("\tsingle defect x = %g\n\n",surf->asf_defect_x);
+        if (me == 0) printf("\tsingle defect y = %g\n\n",surf->asf_defect_y);
+        if (me == 0) printf("\tsingle defect z = %g\n\n",surf->asf_defect_z);
+      }
+      else if (strcmp(arg[iarg+3],"number") == 0) {
+        surf->asf_defect_input_type = 3; 
+        surf->asf_defect_number = input->inumeric(FLERR,arg[iarg+4]);
+        if (me == 0) printf("\tnumber of defects = %g\n\n",surf->asf_defect_number);
+      }
+      // SS end
+      else error->all(FLERR,"Invalid read_isurf command");
+
+      
+
+      if (surf->asf_defect_freq <= 0) error->all(FLERR,"Invalid read_isurf command");
+      if (surf->asf_defect_density < 0) error->all(FLERR,"Invalid read_isurf command");
+
+      if (surf->asf_defect_input_type == 2) iarg += 7;
+      else iarg += 5;
+    }
+    // KSG 
+    else error->all(FLERR,"Invalid read_isurf command");
   }
 }

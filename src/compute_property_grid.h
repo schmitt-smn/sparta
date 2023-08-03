@@ -54,6 +54,11 @@ class ComputePropertyGrid : public Compute {
   void pack_yc(int);
   void pack_zc(int);
   void pack_vol(int);
+  // start SS
+  void pack_actarea(int);
+  void pack_area(int);
+  void pack_asf(int);
+  // end SS
 };
 
 }

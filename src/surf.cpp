@@ -30,6 +30,16 @@
 #include "memory.h"
 #include "error.h"
 
+// SGK
+#include "random_mars.h"
+#include "random_knuth.h" 
+#include "update.h"
+//SS
+#include <iostream>
+#include <random>
+#include <algorithm>
+using namespace std;
+
 using namespace SPARTA_NS;
 using namespace MathConst;
 
@@ -86,6 +96,19 @@ Surf::Surf(SPARTA *sparta) : Pointers(sparta)
   nsr = maxsr = 0;
   sr = NULL;
 
+  // SGK
+  asf_flag = 0;
+  asf_defect_input_type = 0;
+  asf_defect_density = 0;
+  asf_defect_freq = MAXSMALLINT;
+  // SS start
+  asf_defect_x = 0;
+  asf_defect_y = 0;
+  asf_defect_z = 0;
+  // SS end
+  asf_init_val = 0;
+  asf_site_factor = 1;
+
   tally_comm = TALLYAUTO;
 
   // custom per-surf vectors/arrays
@@ -112,6 +135,7 @@ Surf::Surf(SPARTA *sparta) : Pointers(sparta)
 
   hash = new MySurfHash();
   hashfilled = 0;
+
 }
 
 /* ---------------------------------------------------------------------- */
@@ -157,6 +181,8 @@ Surf::~Surf()
   memory->sfree(edvec);
   memory->sfree(edarray);
   memory->destroy(edcol);
+
+  //delete random; // SGK
 }
 
 /* ---------------------------------------------------------------------- */
@@ -375,6 +401,10 @@ void Surf::init()
     delete [] custom_restart_flag;
     custom_restart_flag = NULL;
   }
+  // SGK initialize RNG
+  random = new RanKnuth(update->ranmaster->uniform());
+  rand_seed = update->ranmaster->uniform();
+  random->reset(rand_seed,comm->me,100);
 }
 
 /* ----------------------------------------------------------------------
@@ -425,6 +455,7 @@ void Surf::add_line(surfint id, int itype, double *p1, double *p2)
   lines[nlocal].p2[1] = p2[1];
   lines[nlocal].p2[2] = 0.0;
   lines[nlocal].transparent = 0;
+  lines[nlocal].active_site_fraction = 0.0;
   nlocal++;
 }
 
@@ -484,6 +515,7 @@ void Surf::add_line_own(surfint id, int itype, double *p1, double *p2)
   mylines[m].p2[1] = p2[1];
   mylines[m].p2[2] = 0.0;
   mylines[m].transparent = 0;
+  mylines[m].active_site_fraction = 0.0;
 }
 
 /* ----------------------------------------------------------------------
@@ -511,6 +543,7 @@ void Surf::add_line_temporary(surfint id, int itype, double *p1, double *p2)
   tmplines[ntmp].p2[1] = p2[1];
   tmplines[ntmp].p2[2] = 0.0;
   tmplines[ntmp].transparent = 0;
+  tmplines[ntmp].active_site_fraction = 0.0;
   ntmp++;
 }
 
@@ -543,6 +576,7 @@ void Surf::add_tri(surfint id, int itype, double *p1, double *p2, double *p3)
   tris[nlocal].p3[1] = p3[1];
   tris[nlocal].p3[2] = p3[2];
   tris[nlocal].transparent = 0;
+  tris[nlocal].active_site_fraction = 0.0;
   nlocal++;
 }
 
@@ -605,6 +639,7 @@ void Surf::add_tri_own(surfint id, int itype, double *p1, double *p2, double *p3
   mytris[m].p3[1] = p3[1];
   mytris[m].p3[2] = p3[2];
   mytris[m].transparent = 0;
+  mytris[m].active_site_fraction = 0.0;
 }
 
 /* ----------------------------------------------------------------------
@@ -640,6 +675,7 @@ void Surf::add_tri_own_clip(surfint id, int itype,
   mytris[nown].p3[1] = p3[1];
   mytris[nown].p3[2] = p3[2];
   mytris[nown].transparent = 0;
+  mytris[nown].active_site_fraction = 0.0;
   nown++;
 }
 
@@ -672,6 +708,7 @@ void Surf::add_tri_temporary(surfint id, int itype,
   tmptris[ntmp].p3[1] = p3[1];
   tmptris[ntmp].p3[2] = p3[2];
   tmptris[ntmp].transparent = 0;
+  tmptris[ntmp].active_site_fraction = 0.0;
   ntmp++;
 }
 
@@ -894,6 +931,257 @@ void Surf::compute_line_normal(int old)
 }
 
 /* ----------------------------------------------------------------------
+   assign active_site_fraction for each line element //SGK
+------------------------------------------------------------------------- */
+
+void Surf::assign_line_asf()
+{
+  Grid::ChildCell *cells = grid->cells;
+  Grid::ChildInfo *cinfo = grid->cinfo;
+  int surf_count_total = 0;
+  int surf_count_active = 0;
+  double surf_len_total = 0; // total surface length variable
+  double surf_len_active = 0; // total active surface length
+  for (int icell = 0; icell < grid->nlocal; icell++) {
+    if (cells[icell].nsplit <= 0) continue;
+    if (cells[icell].nsurf <= 0) continue;
+    
+    for (int j = 0; j < cells[icell].nsurf; j++) {
+
+       surf_count_total += 1;
+      // if (surf_count_tot % 30){
+      //   continue;
+      // }
+      int isurf = cells[icell].csurfs[j];
+      surf_len_total += line_size(isurf);
+      // if (lines[isurf].p1[0]<65){
+        
+      lines[isurf].active_site_fraction = cinfo[icell].active_site_fraction;
+      if (lines[isurf].active_site_fraction > 0) {
+        surf_count_active += 1;
+        surf_len_active += line_size(isurf);
+      }
+      
+        // lines[isurf].active_site_fraction = 1;
+      // printf("Active site #%d: x=%f, y=%f\n",surf_count_active,lines[isurf].p1[0],lines[isurf].p1[1]);
+    }
+  }
+  // print active site vector
+  // for (int icell = 0; icell < grid->nlocal; icell++) {
+  //   for (int j = 0; j < cells[icell].nsurf; j++) {
+  //     int isurf = cells[icell].csurfs[j];
+  //     printf("%f\n",lines[isurf].active_site_fraction);
+  //   }
+  // }
+  //printf("Total number of surfaces: %d\n",surf_count_total);
+  //printf("Surfaces with active sites: %d\n",surf_count_active);
+  //printf("Total surface length: %f\n",surf_len_total);
+  //printf("Total active surface length: %f\n",surf_len_active);
+
+  /* Leftover code from Krishnan
+  int n;
+  Line *newlines;
+
+  if (!implicit && distributed) {
+    newlines = mylines;
+    n = nown;
+  } else {
+    newlines = lines;
+    n = nlocal;
+  }
+
+  for (int i = old; i < n; i++) {
+    //double val = 0.0;
+    //if (random->uniform() > 0.5) val = 0.1*random->uniform();
+    //newlines[i].active_site_fraction = val;
+
+    newlines[i].active_site_fraction = grid->cinfo[newlines[i].id].active_site_fraction;
+
+  }
+    // double val = 0.0;
+      // double r = ((double) rand() / (RAND_MAX));
+      // 
+      // if (r > 0.5) val = 10*r;
+      // int isurf = cells[icell].csurfs[j];
+      // lines[isurf].active_site_fraction = cinfo[icell].active_site_fraction;
+      // lines[isurf].active_site_fraction = val;
+      // temp1 = 1;
+  */
+}
+
+void Surf::assign_line_asf_init()
+{
+  // Ideas to do this:
+  // - Get total number of surfaces initially, as well as total surface area and average area of surfaces
+  // - Calculate number of surfaces to initialize with defects based on defect density, which should be an input into the function
+  // - Randomly select surfaces among all surfaces available to meet the previous number of defects desired
+  // - Assign non-zero active site fraction to those surfaces.
+  // - Maybe we have to be careful here, and do it on a cell basis rather than surface basis...
+  //Line *newlines;
+  Grid::ChildCell *cells = grid->cells;
+  Grid::ChildInfo *cinfo = grid->cinfo;
+
+  // SGK initialize RNG
+  //random = new RanKnuth(update->ranmaster->uniform());
+  //double seed = update->ranmaster->uniform();
+  //random->reset(seed,comm->me,100);
+
+  // ********** Now choosing and assigning the surface elements with active sites - multiple methods *********** //
+  // ********** Based on frequency - SS ********** //
+  
+  if (asf_defect_input_type == 0) {
+    int count_surfs_total = 0; // counter for number of surface lines
+    double surf_len_total = 0; // total surface length variable
+    double surf_len_active = 0; // total active surface length
+
+    int surf_count_total = 0; // counter for surfaces to get prescribed frequency of initializing defects
+    int surf_count_active = 0; // counter for number of active surface lines
+    int surf_shuffler = int(random->uniform()*1000); //Shuffle the surfaces so that random surfaces get initialized to a defective one 
+    //int surf_shuffler = 54; //Shuffle the surfaces so that random surfaces get initialized to a defective one 
+    
+    for (int icell = 0; icell < grid->nlocal; icell++) { // Loop through all cells
+      if (cells[icell].nsplit <= 0) continue; // Skip if cell is not split (What does this mean?)
+      if (cells[icell].nsurf <= 0) continue; // Skip if cell has no surfaces
+      for (int j = 0; j < cells[icell].nsurf; j++) { // Loop through all surfaces in icell
+        int isurf = cells[icell].csurfs[j]; // get index of surface
+        surf_len_total += line_size(isurf);
+        surf_count_total += 1;
+        if ((surf_count_total+surf_shuffler) % surf->asf_defect_freq) continue; // skip as long frequency isn't met
+        surf_count_active += 1;
+        grid->assign_cell_asf_init(icell); // assign non-zero active site fraction to active cell (maybe change this to surface basis only...)
+        lines[isurf].active_site_fraction = cinfo[icell].active_site_fraction; // assign active site fraction to surface line, based on cell value
+        printf("Active site #%d: x=%f, y=%f\n",surf_count_active,lines[isurf].p1[0],lines[isurf].p1[1]); // print information about active surface line
+        surf_len_active += line_size(isurf);
+      }
+    }
+
+    if (me == 0) {
+      printf("\nActive site fraction (ASF) module - surface information\n");
+      printf("\tTotal number of surfaces: %d\n",surf_count_total);
+      printf("\tSurfaces with active sites: %d\n",surf_count_active); // print total number of active sites
+      printf("\tTotal surface length: %f\n",surf_len_total);
+      printf("\tTotal active surface length: %f\n\n",surf_len_active);
+    }
+  }
+   
+
+  // ********** Based on defect density - SGK ********** //
+  
+  else if (asf_defect_input_type == 1) {
+    int surf_count_total = 0; // counter for surfaces to get prescribed frequency of initializing defects
+    int surf_count_active = 0; // counter for number of active surface lines
+    double surf_len_curr = 0;
+    double surf_len_total = 0; // total surface length variable
+    double surf_len_active = 0; // total active surface length
+    double surf_defects_curr = 0;
+
+    for (int icell = 0; icell < grid->nlocal; icell++) { // Loop through all cells
+
+      if (cells[icell].nsplit <= 0) continue; // Skip if cell is not split (What does this mean?)
+      if (cells[icell].nsurf <= 0) continue; // Skip if cell has no surfaces
+
+      for (int j = 0; j < cells[icell].nsurf; j++) { // Loop through all surfaces in icell
+
+        int isurf = cells[icell].csurfs[j]; // get index of surface
+
+        surf_count_total += 1;
+        surf_len_curr = line_size(isurf);
+        surf_len_total += surf_len_curr;
+      
+        surf_defects_curr = surf_len_curr*surf->asf_defect_density;
+        if (random->uniform() > surf_defects_curr) continue; //
+        //if (0.1 > surf_defects_curr) continue; //
+
+        grid->assign_cell_asf_init(icell); // assign non-zero active site fraction to active cell (maybe change this to surface basis only...)
+      
+        surf_count_active += 1;
+        surf_len_active += surf_len_curr;
+
+        lines[isurf].active_site_fraction = cinfo[icell].active_site_fraction; // assign active site fraction to surface line, based on cell value
+        //printf("Active site #%d: x=%f, y=%f\n",surf_count_active,lines[isurf].p1[0],lines[isurf].p1[1]); // print information about active surface line
+      
+      }
+    }
+    
+    if (me == 0) {
+      printf("\nActive site fraction (ASF) module - surface information\n");
+      printf("\tTotal number of surfaces: %d\n",surf_count_total);
+      printf("\tSurfaces with active sites: %d\n",surf_count_active); // print total number of active sites
+      printf("\tTotal surface length: %f\n",surf_len_total);
+      printf("\tTotal active surface length: %f\n\n",surf_len_active);
+    }
+  }
+
+
+  // ********** Based on single defect input - SS ********** //
+  
+  else if (asf_defect_input_type == 2) {
+    int surf_count_total = 0; // counter for surfaces to get prescribed frequency of initializing defects
+    int surf_count_active = 0; // counter for number of active surface lines
+    double surf_len_curr = 0;
+    double surf_len_total = 0; // total surface length variable
+    double surf_len_active = 0; // total active surface length
+    double surf_defects_curr = 0;
+
+    for (int icell = 0; icell < grid->nlocal; icell++) { // Loop through all cells
+
+      if (cells[icell].nsplit <= 0) continue; // Skip if cell is not split (What does this mean?)
+      if (cells[icell].nsurf <= 0) continue; // Skip if cell has no surfaces
+
+      for (int j = 0; j < cells[icell].nsurf; j++) { // Loop through all surfaces in icell
+
+        int isurf = cells[icell].csurfs[j]; // get index of surface
+        double mean_x = (lines[isurf].p1[0]+lines[isurf].p2[0])/2;
+        double mean_y = (lines[isurf].p1[1]+lines[isurf].p2[1])/2;
+        double mean_z = (lines[isurf].p1[2]+lines[isurf].p2[2])/2;
+
+        surf_count_total += 1;
+        surf_len_curr = line_size(isurf);
+        surf_len_total += surf_len_curr;
+      
+        if (mean_x != surf->asf_defect_x) continue;
+        else if (mean_y != surf->asf_defect_y) continue;
+        else if (mean_z != surf->asf_defect_z) continue;
+        // surf_defects_curr = surf_len_curr*surf->asf_defect_density;
+        // if (random->uniform() > surf_defects_curr) continue; //
+        //if (0.1 > surf_defects_curr) continue; //
+
+        grid->assign_cell_asf_init(icell); // assign non-zero active site fraction to active cell (maybe change this to surface basis only...)
+      
+        surf_count_active += 1;
+        surf_len_active += surf_len_curr;
+
+        lines[isurf].active_site_fraction = cinfo[icell].active_site_fraction; // assign active site fraction to surface line, based on cell value
+        //printf("Active site #%d: x=%f, y=%f\n",surf_count_active,lines[isurf].p1[0],lines[isurf].p1[1]); // print information about active surface line
+      
+      }
+    }
+    
+    if (me == 0) {
+      printf("\nActive site fraction (ASF) module - surface information\n");
+      printf("\tTotal number of surfaces: %d\n",surf_count_total);
+      printf("\tSurfaces with active sites: %d\n",surf_count_active); // print total number of active sites
+      printf("\tTotal surface length: %f\n",surf_len_total);
+      printf("\tTotal active surface length: %f\n\n",surf_len_active);
+    }
+  }
+
+
+  else error->all(FLERR,"Invalid ASF defect input type");
+
+  // ********** Old generic code - SGK ********** //
+  /*
+  // print active site fractions of all surfaces for debugging
+  // for (int icell = 0; icell < grid->nlocal; icell++) {
+  //   for (int j = 0; j < cells[icell].nsurf; j++) {
+  //     int isurf = cells[icell].csurfs[j];
+  //     printf("%f\n",lines[isurf].active_site_fraction);
+  //   }
+  // }
+  */
+}
+
+/* ----------------------------------------------------------------------
    compute unit outward normal vectors of all lines starting at Nold
    outward normal = (p2-p1) x (p3-p1)
 ------------------------------------------------------------------------- */
@@ -920,6 +1208,426 @@ void Surf::compute_tri_normal(int old)
     MathExtra::cross3(delta12,delta13,newtris[i].norm);
     MathExtra::norm3(newtris[i].norm);
   }
+}
+
+/* ----------------------------------------------------------------------
+   assign active_site_fraction for each tri element // SGK
+------------------------------------------------------------------------- */
+void Surf::assign_tri_asf_init()
+{
+  printf("assign_tri_asf_init\n");
+  //Tri *newtris;
+  Grid::ChildCell *cells = grid->cells;
+  Grid::ChildInfo *cinfo = grid->cinfo;
+
+  // SGK initialize RNG
+  //random = new RanKnuth(update->ranmaster->uniform());
+  //double seed = update->ranmaster->uniform();
+  //random->reset(seed,comm->me,100);
+
+  // ********** Now choosing and assigning the surface elements with active sites - multiple methods *********** //
+  // ********** Based on frequency - SS ********** //
+  if (asf_defect_input_type == 0) {
+    int surfcell_count_total = 0;
+    int surf_count_total = 0;
+    int surfcell_count_active = 0;
+    int surf_count_active = 0;
+    double surf_area_curr = 0;
+    double surf_len_curr = 0;
+    double surf_area_total = 0; // total surface area variable
+    double surf_area_active = 0; // total active surface area
+    // int surf_shuffler = int(random->uniform()*1000); //Shuffle the surfaces so that random surfaces get initialized to a defective one 
+    
+    //int surf_shuffler = 177; //Shuffle the surfaces so that random surfaces get initialized to a defective one 
+    
+    // count number of cells with surfaces, number of surface elements, and total surface area
+    for (int icell = 0; icell < grid->nlocal; icell++) {
+      if (cells[icell].nsplit <= 0) continue;
+      if (cells[icell].nsurf <= 0) continue;
+      surfcell_count_total += 1;
+      for (int j = 0; j < cells[icell].nsurf; j++) {
+        int isurf = cells[icell].csurfs[j];
+        surf_count_total += 1;
+        surf_area_curr = tri_size(isurf,surf_len_curr);
+        surf_area_total += surf_area_curr;
+      }
+    }
+    // calculate number of defects to be initialized based on defect frequency
+    int n_defects = int(surfcell_count_total/surf->asf_defect_freq);
+    // get random cell indices for defects
+    int defects[n_defects];
+    // printf("random number: %f\n",random->uniform());
+    // printf("random number: %f\n",random->uniform());
+    std::mt19937 gen(random->uniform()); // seed the generator
+    std::uniform_int_distribution<> distr(0,surfcell_count_total-1); // define the range
+    
+    for (int i=0; i<n_defects; i++){
+      // defects[i] = int(random->uniform(0,surfcell_count_total-1))
+      defects[i] = int((surfcell_count_total-1)*random->uniform());
+      // defects[i] = distr(gen);
+      // printf("random number: %d\n",defects[i]);
+    }
+    int len = sizeof(defects)/sizeof(defects[0]);
+    std::sort(defects,defects+len);
+    printf("sorted\n");
+    // for (int i=0; i<n_defects; i++){
+    //   // printf("random number: %d\n",defects[i]);
+    // }
+    for (int i=0; i<n_defects; i++){
+      while (defects[i]<=defects[i-1]){
+        defects[i]+=1;
+      }
+    }
+    surfcell_count_total = 0;
+    // loop for initializing defects
+    for (int icell = 0; icell < grid->nlocal; icell++) {
+      if (cells[icell].nsplit <= 0) continue;
+      if (cells[icell].nsurf <= 0) continue;
+      
+    // for (int i=0; i<n_defects; i++){
+      if (surfcell_count_total==defects[surfcell_count_active]){
+        grid->assign_cell_asf_init(icell);
+        surfcell_count_active += 1;
+        printf("icell: %d\n",icell);
+        printf("surfcell: %d\n",surfcell_count_total);
+        printf("Active cell #%d\n",surfcell_count_active);
+        for (int j = 0; j < cells[icell].nsurf; j++) {
+          surf_count_active += 1;
+          int isurf = cells[icell].csurfs[j];
+          tris[isurf].active_site_fraction = cinfo[icell].active_site_fraction;
+          printf("Active site #%d: x=%f, y=%f, z=%f\n",surf_count_active,tris[isurf].p1[0],tris[isurf].p1[1],tris[isurf].p1[2]);
+          surf_area_curr = tri_size(isurf,surf_len_curr);
+          surf_area_active += surf_area_curr;
+        }
+      }
+      surfcell_count_total += 1;
+      // int icell = defects[i];
+    }
+    // for (int icell = 0; icell < grid->nlocal; icell++) {
+    //   if (cells[icell].nsplit <= 0) continue;
+    //   if (cells[icell].nsurf <= 0) continue;
+    //   for (int j = 0; j < cells[icell].nsurf; j++) {
+    //     // int isurf = cells[icell].csurfs[j];
+    //     // surf_count_total += 1;
+    //     // printf("len test: %f\n",surf_len_curr);
+    //     // surf_area_curr = tri_size(isurf,surf_len_curr);
+    //     // printf("len test: %f\n",surf_len_curr);
+    //     // printf("area test: %f\n",surf_area_curr);
+    //     // surf_area_curr, surf_len_curr = tri_size(isurf);
+    //     // surf_area_total += surf_area_curr;
+    //     // if ((surf_count_total+surf_shuffler) % surf->asf_defect_freq) continue; // skip as long frequency isn't met
+    //     if (icell) continue; // skip as long frequency isn't met
+    //     grid->assign_cell_asf_init(icell);
+      
+    //     // if (tris[isurf].p1[0]<49){
+    //     surf_count_active += 1;
+    //     tris[isurf].active_site_fraction = cinfo[icell].active_site_fraction;
+    //     // lines[isurf].active_site_fraction = 1;
+    //     printf("Active site #%d: x=%f, y=%f, z=%f\n",surf_count_active,tris[isurf].p1[0],tris[isurf].p1[1],tris[isurf].p1[2]);
+    //     // surf_area_active += tri_size(isurf);
+    //     surf_area_active += surf_area_curr;
+    //   }
+    // }
+    
+    if (me == 0) {
+      printf("\nActive site fraction (ASF) module - surface information\n");
+      printf("\tTotal number of surfaces: %d\n",surf_count_total);
+      printf("\tNumber of cells with active surfaces: %d\n",surfcell_count_active);
+      printf("\tNumber of surfaces with active sites: %d\n",surf_count_active);
+      printf("\tTotal surface area: %f\n",surf_area_total);
+      printf("\tTotal active surface area: %f\n\n",surf_area_active);
+    }
+  }
+
+  // ********** Based on defect density - SGK ********** //
+
+  else if (asf_defect_input_type == 1) {  
+    int surf_count_total = 0;
+    int surf_count_active = 0;
+    double surf_len_curr = 0;
+    double surf_area_curr = 0;
+    double surf_area_total = 0; // total surface area variable
+    double surf_area_active = 0; // total active surface area
+    double surf_defects_curr = 0;
+
+    for (int icell = 0; icell < grid->nlocal; icell++) {
+
+      if (cells[icell].nsplit <= 0) continue;
+      if (cells[icell].nsurf <= 0) continue;
+
+      for (int j = 0; j < cells[icell].nsurf; j++) {
+
+        int isurf = cells[icell].csurfs[j];
+
+        surf_count_total += 1;
+        surf_area_curr = tri_size(isurf,surf_len_curr);
+        surf_area_total += surf_area_curr;
+
+        surf_defects_curr = surf_area_curr*surf->asf_defect_density;
+
+        if (random->uniform() > surf_defects_curr) continue;
+        //if (0.1 > surf_defects_curr) continue;
+
+        grid->assign_cell_asf_init(icell);
+      
+        surf_count_active += 1;
+        surf_area_active += surf_area_curr;
+        tris[isurf].active_site_fraction = cinfo[icell].active_site_fraction;
+        //printf("Active site #%d: x=%f, y=%f, z=%f\n",surf_count_active,tris[isurf].p1[0],tris[isurf].p1[1],tris[isurf].p1[2]);  
+      }
+    }
+    
+    if (me == 0) {
+      printf("\nActive site fraction (ASF) module - surface information\n");
+      printf("\tTotal number of surfaces: %d\n",surf_count_total);
+      printf("\tNumber of surfaces with active sites: %d\n",surf_count_active);
+      printf("\tTotal surface area: %f\n",surf_area_total);
+      printf("\tTotal active surface area: %f\n\n",surf_area_active);
+    }
+  }
+
+
+
+  // ********** Based on single defect - SS ********** //
+
+  else if (asf_defect_input_type == 2) {  
+    int surf_count_total = 0;
+    int surf_count_active = 0;
+    double surf_len_curr = 0;
+    double surf_area_curr = 0;
+    double surf_area_total = 0; // total surface area variable
+    double surf_area_active = 0; // total active surface area
+    double surf_defects_curr = 0;
+
+    for (int icell = 0; icell < grid->nlocal; icell++) {
+
+      if (cells[icell].nsplit <= 0) continue;
+      if (cells[icell].nsurf <= 0) continue;
+
+      for (int j = 0; j < cells[icell].nsurf; j++) {
+
+        int isurf = cells[icell].csurfs[j];
+        double mean_x = (tris[isurf].p1[0]+tris[isurf].p2[0]+tris[isurf].p3[0])/3;
+        double mean_y = (tris[isurf].p1[1]+tris[isurf].p2[1]+tris[isurf].p3[1])/3;
+        double mean_z = (tris[isurf].p1[2]+tris[isurf].p2[2]+tris[isurf].p3[2])/3;
+        // printf("Defect coords x=%f, y=%f, z=%f\n",mean_x,mean_y,mean_z);
+
+        surf_count_total += 1;
+        surf_area_curr = tri_size(isurf,surf_len_curr);
+        surf_area_total += surf_area_curr;
+
+        if (abs(mean_x-surf->asf_defect_x)>0.5) continue;
+        else if (abs(mean_y-surf->asf_defect_y)>0.5) continue;
+        else if (abs(mean_z-surf->asf_defect_z)>0.5) continue;
+
+        // surf_defects_curr = surf_area_curr*surf->asf_defect_density;
+
+        // if (random->uniform() > surf_defects_curr) continue;
+        //if (0.1 > surf_defects_curr) continue;
+
+        grid->assign_cell_asf_init(icell);
+      
+        surf_count_active += 1;
+        surf_area_active += surf_area_curr;
+        tris[isurf].active_site_fraction = cinfo[icell].active_site_fraction;
+        printf("Active site #%d: x=%f, y=%f, z=%f\n",surf_count_active,tris[isurf].p1[0],tris[isurf].p1[1],tris[isurf].p1[2]);  
+      }
+    }
+
+    
+    
+    if (me == 0) {
+      printf("\nActive site fraction (ASF) module - surface information\n");
+      printf("\tTotal number of surfaces: %d\n",surf_count_total);
+      printf("\tNumber of surfaces with active sites: %d\n",surf_count_active);
+      printf("\tTotal surface area: %f\n",surf_area_total);
+      printf("\tTotal active surface area: %f\n\n",surf_area_active);
+    }
+  }
+
+
+  // ********** Based on number of defects - SS ********** //
+  else if (asf_defect_input_type == 3) {
+    int surfcell_count_total = 0;
+    int surf_count_total = 0;
+    int surfcell_count_active = 0;
+    int surf_count_active = 0;
+    double surf_area_curr = 0;
+    double surf_len_curr = 0;
+    double surf_area_total = 0; // total surface area variable
+    double surf_area_active = 0; // total active surface area
+    // int surf_shuffler = int(random->uniform()*1000); //Shuffle the surfaces so that random surfaces get initialized to a defective one 
+    
+    //int surf_shuffler = 177; //Shuffle the surfaces so that random surfaces get initialized to a defective one 
+    
+    // count number of cells with surfaces, number of surface elements, and total surface area
+    for (int icell = 0; icell < grid->nlocal; icell++) {
+      if (cells[icell].nsplit <= 0) continue;
+      if (cells[icell].nsurf <= 0) continue;
+      surfcell_count_total += 1;
+      for (int j = 0; j < cells[icell].nsurf; j++) {
+        int isurf = cells[icell].csurfs[j];
+        surf_count_total += 1;
+        surf_area_curr = tri_size(isurf,surf_len_curr);
+        surf_area_total += surf_area_curr;
+      }
+    }
+    // get number of defects to be initialized
+    int n_defects = surf->asf_defect_number;
+    // get random cell indices for defects
+    int defects[n_defects];
+    // printf("random number: %f\n",random->uniform());
+    // printf("random number: %f\n",random->uniform());
+    std::mt19937 gen(random->uniform()); // seed the generator
+    std::uniform_int_distribution<> distr(0,surfcell_count_total-1); // define the range
+    
+    for (int i=0; i<n_defects; i++){
+      // defects[i] = int(random->uniform(0,surfcell_count_total-1))
+      defects[i] = int((surfcell_count_total-1)*random->uniform());
+      // defects[i] = distr(gen);
+      // printf("random number: %d\n",defects[i]);
+    }
+    int len = sizeof(defects)/sizeof(defects[0]);
+    std::sort(defects,defects+len);
+    printf("sorted\n");
+    // for (int i=0; i<n_defects; i++){
+    //   // printf("random number: %d\n",defects[i]);
+    // }
+    for (int i=0; i<n_defects; i++){
+      while (defects[i]<=defects[i-1]){
+        defects[i]+=1;
+      }
+    }
+    surfcell_count_total = 0;
+    // loop for initializing defects
+    for (int icell = 0; icell < grid->nlocal; icell++) {
+      if (cells[icell].nsplit <= 0) continue;
+      if (cells[icell].nsurf <= 0) continue;
+      
+    // for (int i=0; i<n_defects; i++){
+      if (surfcell_count_total==defects[surfcell_count_active]){
+        grid->assign_cell_asf_init(icell);
+        surfcell_count_active += 1;
+        printf("icell: %d\n",icell);
+        printf("surfcell: %d\n",surfcell_count_total);
+        printf("Active cell #%d\n",surfcell_count_active);
+        for (int j = 0; j < cells[icell].nsurf; j++) {
+          surf_count_active += 1;
+          int isurf = cells[icell].csurfs[j];
+          tris[isurf].active_site_fraction = cinfo[icell].active_site_fraction;
+          printf("Active site #%d: x=%f, y=%f, z=%f\n",surf_count_active,tris[isurf].p1[0],tris[isurf].p1[1],tris[isurf].p1[2]);
+          surf_area_curr = tri_size(isurf,surf_len_curr);
+          surf_area_active += surf_area_curr;
+        }
+      }
+      surfcell_count_total += 1;
+      // int icell = defects[i];
+    }
+    
+    if (me == 0) {
+      printf("\nActive site fraction (ASF) module - surface information\n");
+      printf("\tTotal number of surfaces: %d\n",surf_count_total);
+      printf("\tNumber of cells with active surfaces: %d\n",surfcell_count_active);
+      printf("\tNumber of surfaces with active sites: %d\n",surf_count_active);
+      printf("\tTotal surface area: %f\n",surf_area_total);
+      printf("\tTotal active surface area: %f\n\n",surf_area_active);
+    }
+  }
+  
+
+  else error->all(FLERR,"Invalid ASF defect input type");
+
+  // ********** Old generic code - SGK ********** //
+  /*
+  // for (int icell = 0; icell < grid->nlocal; icell++) {
+  //   for (int j = 0; j < cells[icell].nsurf; j++) {
+  //     int isurf = cells[icell].csurfs[j];
+  //     printf("%f\n",tris[isurf].active_site_fraction);
+  //   }
+  // }
+  */
+}
+
+void Surf::assign_tri_asf()
+{
+  printf("assign_tri_asf\n");
+  //Tri *newtris;
+  Grid::ChildCell *cells = grid->cells;
+  Grid::ChildInfo *cinfo = grid->cinfo;
+  int surf_count_total = 0;
+  int surf_count_active = 0;
+  double surf_area_curr = 0;
+  double surf_len_curr = 0;
+  double surf_area_total = 0; // total surface area variable
+  double surf_area_active = 0; // total active surface area
+
+  for (int icell = 0; icell < grid->nlocal; icell++) {
+
+    if (cells[icell].nsplit <= 0) continue;
+    if (cells[icell].nsurf <= 0) continue;
+    
+    for (int j = 0; j < cells[icell].nsurf; j++) {
+
+      int isurf = cells[icell].csurfs[j];
+      surf_count_total += 1;
+      surf_area_curr = tri_size(isurf,surf_len_curr);
+      surf_area_total += surf_area_curr;
+      // surf_area_total += tri_size(isurf);
+        
+      tris[isurf].active_site_fraction = cinfo[icell].active_site_fraction;
+      if (tris[isurf].active_site_fraction > 0) {
+        surf_count_active += 1;
+        // surf_area_active += tri_size(isurf);
+        surf_area_active += surf_area_curr;
+      }
+
+      
+      // printf("Active site #%d: x=%f, y=%f, z=%f\n",surf_count_active,tris[isurf].p1[0],tris[isurf].p1[1],tris[isurf].p1[2]);
+      
+    }
+  }
+  //printf("Total number of surfaces: %d\n",surf_count_total);
+  //printf("Number of surfaces with active sites: %d\n",surf_count_active);
+  //printf("Total surface area: %f\n",surf_area_total);
+  //printf("Total active surface area: %f\n",surf_area_active);
+
+  // for (int icell = 0; icell < grid->nlocal; icell++) {
+  //   for (int j = 0; j < cells[icell].nsurf; j++) {
+  //     int isurf = cells[icell].csurfs[j];
+  //     printf("%f\n",tris[isurf].active_site_fraction);
+  //   }
+  // }
+  /*  Code backup from Krishnan
+
+
+  //     // double val = 0.0;
+  //     // double r = ((double) rand() / (RAND_MAX));
+  //     // 
+  //     // if (r > 0.5) val = 10*r;
+  //     // int isurf = cells[icell].csurfs[j];
+  //     // lines[isurf].active_site_fraction = cinfo[icell].active_site_fraction;
+  //     // lines[isurf].active_site_fraction = val;
+  //     // temp1 = 1;
+  int n;
+  Tri *newtris;
+
+  if (!implicit && distributed) {
+    newtris = mytris;
+    n = nown;
+  } else {
+    newtris = tris;
+    n = nlocal;
+  }
+
+  for (int i = old; i < n; i++) {
+    //double val = 0.0;
+    //if (random->uniform() > 0.5) val = 0.1*random->uniform();
+    //newtris[i].active_site_fraction = val;
+
+    newtris[i].active_site_fraction = grid->cinfo[newtris[i].id].active_site_fraction;
+  }
+  */
+
 }
 
 /* ----------------------------------------------------------------------

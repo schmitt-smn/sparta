@@ -91,6 +91,17 @@ class FixAblate : public Fix {
   double *vbuf;
   int maxvar;
 
+  // SGK
+  int *proclist_prop;
+  cellint *locallist_prop;
+
+  int *numsend_prop;
+  int maxsend_prop;
+
+  double *sbuf_prop;
+  int maxbuf_prop;
+  // KSG
+
   class MarchingSquares *ms;
   class MarchingCubes *mc;
   class RanKnuth *random;
@@ -99,6 +110,8 @@ class FixAblate : public Fix {
   void set_delta_random();
   void set_delta();
   void decrement();
+  void update_cell_asf(); // SGK
+  void propagate_cell_asf(); //SGK
   void sync();
   void epsilon_adjust();
   void push_lohi();
@@ -106,6 +119,7 @@ class FixAblate : public Fix {
   int walk_to_neigh(int, int, int, int);
   void grow_percell(int);
   void grow_send();
+  void grow_send_prop(); //SGK
 };
 
 }

@@ -23,6 +23,10 @@
 #include "memory.h"
 #include "error.h"
 
+//SGK
+#include "surf.h"
+#include "domain.h"
+
 using namespace SPARTA_NS;
 
 enum{DISSOCIATION,EXCHANGE,RECOMBINATION};
@@ -110,18 +114,49 @@ void SurfReactProb::init()
    if dissociation, add particle and return ptr JP
 ------------------------------------------------------------------------- */
 
-int SurfReactProb::react(Particle::OnePart *&ip, int, double *,
-                         Particle::OnePart *&jp, int &)
+int SurfReactProb::react(Particle::OnePart *&ip, int isurf, double *, 
+                         Particle::OnePart *&jp, int &) //SGK
 {
   int n = reactions[ip->ispecies].n;
   if (n == 0) return 0;
-
+  //printf("reaction");
   int *list = reactions[ip->ispecies].list;
 
   // probablity to compare to reaction probability
 
   double react_prob = 0.0;
   double random_prob = random->uniform();
+
+  // SGK
+  // determine if the particle strikes an active site
+  // if active site increase the probability by a site_factor
+  Surf::Line *lines = surf->lines;
+  Surf::Tri *tris = surf->tris;
+
+  double asf = 0.0;
+  //double site_factor = 1.0;
+  int active_site = 0;
+  double new_asf = 0.0;
+  double site_density,area,len1;
+
+  if (domain->dimension == 2) {
+    site_density = 5.9e9;
+    asf = lines[isurf].active_site_fraction;
+    area = surf->line_size(isurf);
+  } else {
+    site_density = 3.5e19;
+    asf = tris[isurf].active_site_fraction;
+    area = surf->tri_size(isurf,len1);
+  }
+  
+  if (random->uniform() < asf) {
+    //site_factor = 1000000000000.0; 
+    //printf("site_factor = %g\n",surf->asf_site_factor);
+    active_site = 1;
+    // printf("active site\n"); //SGK-print
+  }
+  // KSG
+
 
   // loop over possible reactions for this species
   // if dissociation performs a realloc:
@@ -133,9 +168,16 @@ int SurfReactProb::react(Particle::OnePart *&ip, int, double *,
 
   for (int i = 0; i < n; i++) {
     r = &rlist[list[i]];
-    react_prob += r->coeff[0];
-
+    //react_prob += r->coeff[0]*surf->asf_site_factor; // SGK
+    if (active_site == 1) {
+      react_prob += r->coeff[0]*surf->asf_site_factor;
+    } else {
+      react_prob += r->coeff[0];
+    }
+    //react_prob += r->coeff[0]; // original code
     if (react_prob > random_prob) {
+      // printf("react prob %f\n",react_prob);
+      // printf("random prob %f\n",random_prob);
       nsingle++;
       tally_single[list[i]]++;
       switch (r->type) {
@@ -164,6 +206,24 @@ int SurfReactProb::react(Particle::OnePart *&ip, int, double *,
           return (list[i] + 1);
         }
       }
+
+      // // SGK
+      // // update the active site fraction
+      // int asf_num = 0;
+      // if (active_site == 0) asf_num = 3;
+      // else {
+      //   if (asf < 0.25) asf_num = 2;
+      //   else if (asf < 0.5) asf_num = 1;
+      //   else if (asf < 0.75) asf_num = 0;
+      //   else asf_num = -1;
+      // }
+
+      // new_asf = (asf_num + asf*site_density*area)/(site_density*area);
+
+      // if (domain->dimension == 2) lines[isurf].active_site_fraction = new_asf;
+      // else tris[isurf].active_site_fraction = new_asf;
+      // // KSG
+
     }
   }
 

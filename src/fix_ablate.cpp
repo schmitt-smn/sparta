@@ -50,6 +50,8 @@ enum{NCHILD,NPARENT,NUNKNOWN,NPBCHILD,NPBPARENT,NPBUNKNOWN,NBOUND};  // Update
 // remove if fix particles-inside-surfs issue
 enum{PKEEP,PINSERT,PDONE,PDISCARD,PENTRY,PEXIT,PSURF};  // several files
 
+enum{UNKNOWN,OUTSIDE,INSIDE,OVERLAP};           // several files // SGK
+
 // NOTES
 // should I store one value or 8 per cell
 // how to preserve svalues and set type of new surfs,
@@ -197,6 +199,7 @@ FixAblate::FixAblate(SPARTA *sparta, int narg, char **arg) :
   cdelta = NULL;
   cdelta_ghost = NULL;
   numsend = NULL;
+  
   maxgrid = maxghost = 0;
 
   proclist = NULL;
@@ -208,6 +211,18 @@ FixAblate::FixAblate(SPARTA *sparta, int narg, char **arg) :
 
   vbuf = NULL;
   maxvar = 0;
+
+  // SGK
+  numsend_prop = NULL;
+  maxsend_prop = 0; 
+
+  proclist_prop = NULL;
+  locallist_prop = NULL;
+
+  sbuf_prop = NULL;
+  maxbuf_prop = 0;
+  // KSG
+  
 
   ms = NULL;
   mc = NULL;
@@ -249,12 +264,20 @@ FixAblate::~FixAblate()
   memory->destroy(cdelta);
   memory->destroy(cdelta_ghost);
   memory->destroy(numsend);
+  
 
   memory->destroy(proclist);
   memory->destroy(locallist);
 
   memory->destroy(sbuf);
   memory->destroy(vbuf);
+
+  // SGK
+  memory->destroy(numsend_prop);
+  memory->destroy(proclist_prop);
+  memory->destroy(locallist_prop);
+  memory->destroy(sbuf_prop);
+  // KSG
 
   delete ms;
   delete mc;
@@ -295,6 +318,8 @@ void FixAblate::store_corners(int nx_caller, int ny_caller, int nz_caller,
   xyzsize[2] = xyzsize_caller[2];
   thresh = thresh_caller;
 
+  //printf("ablate store corners 1\n"); // SGK-print
+
   tvalues_flag = 0;
   if (tvalues_caller) tvalues_flag = 1;
 
@@ -306,12 +331,16 @@ void FixAblate::store_corners(int nx_caller, int ny_caller, int nz_caller,
 
   // allocate per-grid cell data storage
 
+  //printf("ablate store corners 2\n"); // SGK-print
+
   Grid::ChildCell *cells = grid->cells;
   Grid::ChildInfo *cinfo = grid->cinfo;
   Grid::SplitInfo *sinfo = grid->sinfo;
   nglocal = grid->nlocal;
 
   grow_percell(0);
+
+  //printf("ablate store corners 3\n"); // SGK-print
 
   // copy caller values into local values of FixAblate
 
@@ -320,6 +349,8 @@ void FixAblate::store_corners(int nx_caller, int ny_caller, int nz_caller,
       cvalues[icell][m] = cvalues_caller[icell][m];
     if (tvalues_flag) tvalues[icell] = tvalues_caller[icell];
   }
+
+  //printf("ablate store corners 4\n"); // SGK-print
 
   // set ix,iy,iz indices from 1 to Nxyz for each of my owned grid cells
   // same logic as ReadIsurf::create_hash()
@@ -331,6 +362,8 @@ void FixAblate::store_corners(int nx_caller, int ny_caller, int nz_caller,
     if (!(cinfo[icell].mask & groupbit)) continue;
     if (cells[icell].nsplit <= 0) continue;
 
+    //printf("ablate store corners 5\n"); // SGK-print
+
     ixyz[icell][0] =
       static_cast<int> ((cells[icell].lo[0]-cornerlo[0]) / xyzsize[0] + 0.5) + 1;
     ixyz[icell][1] =
@@ -341,17 +374,25 @@ void FixAblate::store_corners(int nx_caller, int ny_caller, int nz_caller,
 
   // push corner pt values that are fully external/internal to 0 or 255
 
+  //printf("ablate store corners 6\n"); // SGK-print
+
   if (pushflag) push_lohi();
   epsilon_adjust();
 
   // create marching squares/cubes classes, now that have group & threshold
+
+  //printf("ablate store corners 7\n"); // SGK-print
 
   if (dim == 2) ms = new MarchingSquares(sparta,igroup,thresh);
   else mc = new MarchingCubes(sparta,igroup,thresh);
 
   // create implicit surfaces
 
+  //printf("ablate store corners 8\n"); // SGK-print
+
   create_surfs(1);
+
+  //printf("ablate store corners 9\n"); // SGK-print
 }
 
 /* ---------------------------------------------------------------------- */
@@ -385,6 +426,9 @@ void FixAblate::init()
 
 void FixAblate::end_of_step()
 {
+  // update active_site_fraction value of cell // SGK
+  if (surf->asf_flag) update_cell_asf();
+
   // set per-cell delta vector randomly or from compute/fix source
 
   if (which == RANDOM) set_delta_random();
@@ -399,9 +443,24 @@ void FixAblate::end_of_step()
   sync();
   epsilon_adjust();
 
+  // propagate active_site_fraction value to neighbor cells of depleted cells
+  if (surf->asf_flag) propagate_cell_asf();
+
   // re-create implicit surfs
 
   create_surfs(0);
+
+  // assign active site fraction of new surfs
+  if (surf->asf_flag) {  
+    if (dim == 2) {
+      //printf("fix_ablate: assign_line_asf\n");
+      surf->assign_line_asf();
+    }
+    else {
+      //printf("fix_ablate: assign_tris_asf\n");
+      surf->assign_tri_asf();
+    }
+  }
 }
 
 /* ---------------------------------------------------------------------- */
@@ -411,6 +470,8 @@ void FixAblate::create_surfs(int outflag)
   // DEBUG
   // store copy of last ablation's per-cell MC flags before a new ablation
 
+  //printf("ablate create_srufs 1\n"); // SGK-print
+
   int **mcflags_old = mcflags;
   memory->create(mcflags,maxgrid,4,"ablate:mcflags");
   for (int i = 0; i < maxgrid; i++)
@@ -418,9 +479,13 @@ void FixAblate::create_surfs(int outflag)
 
   // sort existing particles since may be clearing split cells
 
+  //printf("ablate create_srufs 2\n"); // SGK-print
+
   if (!particle->sorted) particle->sort();
 
   // reassign particles in sub cells to all be in parent split cell
+
+  //printf("ablate create_srufs 3\n"); // SGK-print
 
   if (grid->nsplitlocal) {
     Grid::ChildCell *cells = grid->cells;
@@ -431,6 +496,8 @@ void FixAblate::create_surfs(int outflag)
 
   // call clear_surf before create new surfs, so cell/corner flags are all set
 
+  //printf("ablate create_srufs 4\n"); // SGK-print
+
   grid->unset_neighbors();
   grid->remove_ghosts();
   grid->clear_surf();
@@ -440,16 +507,22 @@ void FixAblate::create_surfs(int outflag)
   // cvalues = corner point values
   // tvalues = surf type for surfs in each grid cell
 
+  //printf("ablate create_srufs 5\n"); // SGK-print
+
   if (dim == 2) ms->invoke(cvalues,tvalues);
   else mc->invoke(cvalues,tvalues,mcflags);
 
   // set surf->nsurf and surf->nown
+
+  //printf("ablate create_srufs 6\n"); // SGK-print
 
   surf->nown = surf->nlocal;
   bigint nlocal = surf->nlocal;
   MPI_Allreduce(&nlocal,&surf->nsurf,1,MPI_SPARTA_BIGINT,MPI_SUM,world);
 
   // output extent of implicit surfs, some may be tiny
+
+  //printf("ablate create_srufs 7\n"); // SGK-print
 
   if (outflag) {
     if (dim == 2) surf->output_extent(0);
@@ -458,9 +531,18 @@ void FixAblate::create_surfs(int outflag)
 
   // compute normals of new surfs
 
+  //printf("ablate create_srufs 8\n"); // SGK-print
+
   if (dim == 2) surf->compute_line_normal(0);
   else surf->compute_tri_normal(0);
 
+   // compute normals of new surfs // SGK
+  // //printf("ablate create_srufs 9\n"); // SGK-print
+  // printf("Simon: assign_line_asf ablate");
+  // if (dim == 2) surf->assign_line_asf();
+  // else surf->assign_tri_asf();
+
+  //printf("ablate create_srufs 10\n"); // SGK-print
   // MC->cleanup() checks for consistent triangles on grid cell faces
   // needs to come after normals are computed
   // it requires neighbor indices and ghost cell info
@@ -478,6 +560,7 @@ void FixAblate::create_surfs(int outflag)
 
   // assign optional surf group to masks of new surfs
 
+  //printf("ablate create_srufs 11\n"); // SGK-print
   if (sgroupbit) {
     int nsurf = surf->nlocal;
     if (dim == 3) {
@@ -528,6 +611,7 @@ void FixAblate::create_surfs(int outflag)
     grid->clear_surf();
   }
 
+  //printf("ablate create_srufs 12\n"); // SGK-print
   // -----------------------
   // map surfs to grid cells
   // -----------------------
@@ -591,6 +675,11 @@ void FixAblate::create_surfs(int outflag)
   // DEBUG - remove only the particles that are inside the surfs
   //         after ablation
   // similar code as in fix grid/check
+
+  //printf("ablate create_srufs 13\n"); // SGK-print
+
+  // Cut3d *cut3d = new Cut3d(sparta);
+  // Cut2d *cut2d = NULL;
 
   Grid::ChildCell *cells = grid->cells;
   Grid::ChildInfo *cinfo = grid->cinfo;
@@ -675,6 +764,7 @@ void FixAblate::create_surfs(int outflag)
     } else i++;
   }
 
+  //printf("ablate create_srufs 14\n"); // SGK-print
   MPI_Allreduce(&ncount,&ndelete,1,MPI_INT,MPI_SUM,world);
 
   particle->nlocal = pnlocal;
@@ -857,6 +947,221 @@ void FixAblate::decrement()
     }
   }
 }
+
+// SGK
+// update the value of the active site fraction for all the cells
+// by averaging the asf value of all the surface elements within each cell
+void FixAblate::update_cell_asf()
+{
+  Grid::ChildCell *cells = grid->cells;
+  Grid::ChildInfo *cinfo = grid->cinfo;
+
+  Surf::Tri *tris = surf->tris;
+  Surf::Line *lines = surf->lines;
+
+  int isurf;
+  double area,len1;
+
+  if (domain->dimension == 2) {
+    for (int icell = 0; icell < nglocal; icell++) {
+      if (!(cinfo[icell].mask & groupbit)) continue;
+      if (cells[icell].nsplit <= 0) continue;
+      if (cinfo[icell].type != OVERLAP) continue;
+      double total_area = 0.0;
+      double total_active_sites = 0.0;
+      for (int j = 0; j < cells[icell].nsurf; j++) {
+        isurf = cells[icell].csurfs[j];
+        area = surf->line_size(isurf);
+        total_area += area;
+        total_active_sites += lines[isurf].active_site_fraction*area;
+      }
+      //printf("Active site fraction=%f\n",total_active_sites/total_area);
+      cinfo[icell].active_site_fraction = total_active_sites/total_area;
+    }
+    // for (int icell = 0; icell < grid->nlocal; icell++) {
+    //   for (int j = 0; j < cells[icell].nsurf; j++) {
+    //     int isurf = cells[icell].csurfs[j];
+    //     printf("%f\n",lines[isurf].active_site_fraction);
+    //   }
+    // }
+  } else {
+    for (int icell = 0; icell < nglocal; icell++) {
+      if (!(cinfo[icell].mask & groupbit)) continue;
+      if (cells[icell].nsplit <= 0) continue;
+      if (cinfo[icell].type != OVERLAP) continue;
+      double total_area = 0.0;
+      double total_active_sites = 0.0;
+      for (int j = 0; j < cells[icell].nsurf; j++) {
+        isurf = cells[icell].csurfs[j];
+        area = surf->tri_size(isurf,len1);
+        total_area += area;
+        total_active_sites += tris[isurf].active_site_fraction*area;
+      }
+      cinfo[icell].active_site_fraction = total_active_sites/total_area;
+    }
+  }
+
+  
+}
+// KSG
+
+// SGK
+// propagate the active sites to the neighboring cells
+// by averaging the asf value of all the surface elements within each cell
+void FixAblate::propagate_cell_asf()
+{
+  
+  //printf("propagate cell asf\n"); //SGK-print
+
+  int i,j,m,n,ix,iy,iz,ixfirst,iyfirst,izfirst,jx,jy,jz;
+  int icell,ifirst,jcell,proc,ilocal;
+
+  Grid::ChildCell *cells = grid->cells;
+  Grid::ChildInfo *cinfo = grid->cinfo;
+
+  // make list of datums to send to neighbor procs
+  // 8 or 26 cells surrounding icell need icell's cdelta info
+  // but only if they are owned by a neighbor proc
+  // insure icell is only sent once to same neighbor proc
+  // also set proclist and locallist for each sent datum
+
+  int nsend_prop=0;
+  thresh = 150.0;
+
+  for (int icell = 0; icell < nglocal; icell++) {
+    if (!(cinfo[icell].mask & groupbit)) continue;
+    if (cells[icell].nsplit <= 0) continue;
+    if (cinfo[icell].type != OVERLAP) continue;
+
+    if (cells[icell].nsurf <= 0) continue;
+    if (cvalues[icell][0] > thresh) continue;
+    if (cvalues[icell][1] > thresh) continue;
+    if (cvalues[icell][2] > thresh) continue;
+    if (cvalues[icell][3] > thresh) continue;
+
+    if (domain->dimension == 3) {
+      if (cvalues[icell][4] > thresh) continue;
+      if (cvalues[icell][5] > thresh) continue;
+      if (cvalues[icell][6] > thresh) continue;
+      if (cvalues[icell][7] > thresh) continue;
+    }
+
+    ix = ixyz[icell][0];
+    iy = ixyz[icell][1];
+    iz = ixyz[icell][2];
+    ifirst = nsend_prop;
+
+    for (int jz = -1; jz <= 1; jz++) {
+      for (int jy = -1; jy <= 1; jy++) {
+        for (int jx = -1; jx <= 1; jx++) {
+
+          // skip neigh = self
+
+          if (jx == 0 && jy == 0 && jz == 0) continue;
+
+          // check if neighbor cell is within bounds of ablate grid
+
+          if (ix+jx < 1 || ix+jx > nx) continue;
+          if (iy+jy < 1 || iy+jy > ny) continue;
+          if (iz+jz < 1 || iz+jz > nz) continue;
+
+          // jcell = local index of (jx,jy,jz) neighbor cell of icell
+
+          jcell = walk_to_neigh(icell,jx,jy,jz);
+
+          // add a send list entry of icell to proc != me if haven't already
+
+          proc = cells[jcell].proc;
+          if (proc == me) {
+            if (cells[jcell].nsurf > 0) grid->assign_cell_asf_neigh(jcell);
+          }
+          else {
+            for (j = ifirst; j < nsend_prop; j++)
+              if (proc == proclist_prop[j]) break;
+            if (j == nsend_prop) {
+              if (nsend_prop == maxsend_prop) grow_send_prop();
+              proclist_prop[nsend_prop] = proc;
+              // NOTE: change locallist to another name
+              // NOTE: what about cellint vs int
+              locallist_prop[nsend_prop++] = cells[icell].id;   // no longer an int
+            }
+          }
+        }
+      }
+    }
+        
+    // # of neighbor procs to send icell to
+    numsend_prop[icell] = nsend_prop - ifirst;
+  }
+
+  // realloc sbuf if necessary
+  // ncomm = ilocal
+
+  int ncomm = 1;
+
+  if (nsend_prop*ncomm > maxbuf_prop) {
+    memory->destroy(sbuf_prop);
+    maxbuf_prop = nsend_prop*ncomm;
+    memory->create(sbuf_prop,maxbuf_prop,"ablate:sbuf_prop");
+  }
+
+  // pack datums to send
+  // datum = ilocal of neigh cell on other proc
+
+  nsend_prop = 0;
+  m = 0;
+
+  for (icell = 0; icell < nglocal; icell++) {
+    if (!(cinfo[icell].mask & groupbit)) continue;
+    if (cells[icell].nsplit <= 0) continue;
+    if (cinfo[icell].type != OVERLAP) continue;
+
+    if (cells[icell].nsurf <= 0) continue;
+    if (cvalues[icell][0] > thresh) continue;
+    if (cvalues[icell][1] > thresh) continue;
+    if (cvalues[icell][2] > thresh) continue;
+    if (cvalues[icell][3] > thresh) continue;
+
+    if (domain->dimension == 3) {
+      if (cvalues[icell][4] > thresh) continue;
+      if (cvalues[icell][5] > thresh) continue;
+      if (cvalues[icell][6] > thresh) continue;
+      if (cvalues[icell][7] > thresh) continue;
+    }
+
+    n = numsend_prop[icell];
+    for (i = 0; i < n; i++) {
+      sbuf_prop[m++] = locallist_prop[nsend_prop];
+      nsend_prop++;
+    }
+  }
+
+  // perform irregular neighbor comm
+  // Comm class manages rbuf memory
+
+  double *rbuf_prop;
+  int nrecv_prop = comm->irregular_uniform_neighs(nsend_prop,proclist_prop,(char *) sbuf_prop,
+                                             ncomm*sizeof(double),
+                                             (char **) &rbuf_prop);
+
+  // unpack received dat
+
+  // NOTE: need to check if hashfilled
+  cellint cellID;
+  Grid::MyHash *hash = grid->hash;
+
+  m = 0;
+  for (i = 0; i < nrecv_prop; i++) {
+    cellID = static_cast<cellint> (rbuf_prop[m++]);   // NOTE: need ubuf logic
+    ilocal = (*hash)[cellID];
+    icell = ilocal - nglocal;
+    if (cells[icell].nsurf > 0) grid->assign_cell_asf_neigh(icell);
+  }
+  
+  
+
+}
+// KSG
 
 /* ----------------------------------------------------------------------
    sync all copies of corner points values for all owned grid cells
@@ -1450,6 +1755,7 @@ void FixAblate::grow_percell(int nnew)
   memory->grow(celldelta,maxgrid,"ablate:celldelta");
   memory->grow(cdelta,maxgrid,ncorner,"ablate:celldelta");
   memory->grow(numsend,maxgrid,"ablate:numsend");
+  memory->grow(numsend_prop,maxgrid,"ablate:numsend_prop"); //SGK
 
   array_grid = cvalues;
 }
@@ -1463,6 +1769,17 @@ void FixAblate::grow_send()
   maxsend += DELTASEND;
   memory->grow(proclist,maxsend,"ablate:proclist");
   memory->grow(locallist,maxsend,"ablate:locallist");
+}
+
+/* ----------------------------------------------------------------------
+   reallocate send vectors for propagate_cell_asf
+------------------------------------------------------------------------- */
+
+void FixAblate::grow_send_prop()
+{
+  maxsend_prop += DELTASEND;
+  memory->grow(proclist_prop,maxsend_prop,"ablate:proclist_prop");
+  memory->grow(locallist_prop,maxsend_prop,"ablate:locallist_prop");
 }
 
 /* ----------------------------------------------------------------------
@@ -1526,5 +1843,8 @@ double FixAblate::memory_usage()
   bytes += maxghost*ncorner * sizeof(double);  // cdelta_ghost
   bytes += 3*maxsend * sizeof(int);            // proclist,locallist,numsend
   bytes += maxbuf * sizeof(double);            // sbuf
+  bytes += 3*maxsend_prop * sizeof(int);       // proclist_prop,locallist_prop,numsend_prop //SGK
+  bytes += maxbuf_prop * sizeof(double);            // sbuf_prop
+
   return bytes;
 }

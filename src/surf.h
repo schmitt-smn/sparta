@@ -66,6 +66,7 @@ class Surf : protected Pointers {
                             // rhand rule: Z x (p2-p1) = outward normal
     double norm[3];         // outward normal to line segment
     int transparent;        // 1 if surf is transparent
+    double active_site_fraction; // SGK
   };
 
   struct Tri {
@@ -78,6 +79,7 @@ class Surf : protected Pointers {
                             // rhand rule: (p2-p1) x (p3-p1) = outward normal
     double norm[3];         // outward normal to triangle
     int transparent;        // 1 if surf is transparent
+    double active_site_fraction; // SGK
   };
 
   Line *lines;              // list of lines for surface collisions
@@ -116,6 +118,19 @@ class Surf : protected Pointers {
   int pushflag;             // set to 1 to push surf pts near grid cell faces
   double pushlo,pushhi;     // lo/hi ranges to push on
   double pushvalue;         // new position to push to
+
+  // SGK
+  int asf_flag;
+  int asf_defect_input_type; 
+  double asf_defect_density;   // input defect density for the active site fraction feature
+  int asf_defect_freq;       // input defect frequency for the active site fraction feature
+  int asf_defect_number;       // input number of defects for the active site fraction feature
+  double asf_defect_x;       // input single defect x coordinate for the active site fraction feature
+  double asf_defect_y;       // input single defect y coordinate for the active site fraction feature
+  double asf_defect_z;       // input single defect z coordinate for the active site fraction feature
+  double asf_init_val;         // input asf initial value for the active site fraction feature
+  double asf_site_factor;      // input site factor for the active site fraction feature
+  // KSG
 
   // extra custom vectors/arrays for per-surf data
   // ncustom > 0 if there are any extra arrays
@@ -187,6 +202,12 @@ class Surf : protected Pointers {
 
   void compute_line_normal(int);
   void compute_tri_normal(int);
+
+  void assign_line_asf_init(); // SGK
+  void assign_line_asf(); // SGK
+  void assign_tri_asf_init(); // SGK
+  void assign_tri_asf(); // SGK
+
   void quad_corner_point(int, double *, double *, double *);
   void hex_corner_point(int, double *, double *, double *);
 
@@ -251,6 +272,12 @@ class Surf : protected Pointers {
   virtual void grow_own(int);
   virtual void grow_temporary(int);
   bigint memory_usage();
+
+
+ private:
+  class RanKnuth *random;     // SGK RNG for reaction probabilities
+  double rand_seed;
+
 
  protected:
   int me,nprocs;
@@ -348,6 +375,7 @@ class Surf : protected Pointers {
                               int &, int *&, char *&, void *);
   static int rendezvous_tris(int, char *,
                              int &, int *&, char *&, void *);
+
 };
 
 }

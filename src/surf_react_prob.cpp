@@ -168,12 +168,14 @@ int SurfReactProb::react(Particle::OnePart *&ip, int isurf, double *,
 
   for (int i = 0; i < n; i++) {
     r = &rlist[list[i]];
+
     //react_prob += r->coeff[0]*surf->asf_site_factor; // SGK
     if (active_site == 1) {
       react_prob += r->coeff[0]*surf->asf_site_factor;
     } else {
       react_prob += r->coeff[0];
     }
+
     //react_prob += r->coeff[0]; // original code
     if (react_prob > random_prob) {
       // printf("react prob %f\n",react_prob);
@@ -207,6 +209,7 @@ int SurfReactProb::react(Particle::OnePart *&ip, int isurf, double *,
         }
       }
 
+
       // // SGK
       // // update the active site fraction
       // int asf_num = 0;
@@ -223,6 +226,7 @@ int SurfReactProb::react(Particle::OnePart *&ip, int isurf, double *,
       // if (domain->dimension == 2) lines[isurf].active_site_fraction = new_asf;
       // else tris[isurf].active_site_fraction = new_asf;
       // // KSG
+
 
     }
   }

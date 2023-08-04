@@ -71,5 +71,6 @@ else:
 
 if dim == 2: xyz = struct.pack("2i",nx,ny)
 else: xyz = struct.pack("3i",nx,ny,nz)
-bytes = a.tostring()
-open(file,'w').write(xyz+bytes)
+# bytes = a.tostring()
+# bytes = a.tobytes()
+open(file,'wb').write(xyz+bytes)

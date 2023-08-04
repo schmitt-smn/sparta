@@ -875,6 +875,7 @@ void ReadISurf::process_args(int narg, char **arg)
         surf->asf_defect_density = input->numeric(FLERR,arg[iarg+4]);
         if (me == 0) printf("\tdefect_density = %g\n\n",surf->asf_defect_density);
       }
+
       // SS start
       else if (strcmp(arg[iarg+3],"single") == 0) {
         surf->asf_defect_input_type = 2; 
@@ -891,6 +892,7 @@ void ReadISurf::process_args(int narg, char **arg)
         if (me == 0) printf("\tnumber of defects = %g\n\n",surf->asf_defect_number);
       }
       // SS end
+
       else error->all(FLERR,"Invalid read_isurf command");
 
       
@@ -898,8 +900,10 @@ void ReadISurf::process_args(int narg, char **arg)
       if (surf->asf_defect_freq <= 0) error->all(FLERR,"Invalid read_isurf command");
       if (surf->asf_defect_density < 0) error->all(FLERR,"Invalid read_isurf command");
 
+
       if (surf->asf_defect_input_type == 2) iarg += 7;
       else iarg += 5;
+
     }
     // KSG 
     else error->all(FLERR,"Invalid read_isurf command");

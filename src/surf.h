@@ -124,10 +124,12 @@ class Surf : protected Pointers {
   int asf_defect_input_type; 
   double asf_defect_density;   // input defect density for the active site fraction feature
   int asf_defect_freq;       // input defect frequency for the active site fraction feature
+
   int asf_defect_number;       // input number of defects for the active site fraction feature
   double asf_defect_x;       // input single defect x coordinate for the active site fraction feature
   double asf_defect_y;       // input single defect y coordinate for the active site fraction feature
   double asf_defect_z;       // input single defect z coordinate for the active site fraction feature
+
   double asf_init_val;         // input asf initial value for the active site fraction feature
   double asf_site_factor;      // input site factor for the active site fraction feature
   // KSG

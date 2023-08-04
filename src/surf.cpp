@@ -34,11 +34,13 @@
 #include "random_mars.h"
 #include "random_knuth.h" 
 #include "update.h"
+
 //SS
 #include <iostream>
 #include <random>
 #include <algorithm>
 using namespace std;
+
 
 using namespace SPARTA_NS;
 using namespace MathConst;
@@ -101,11 +103,13 @@ Surf::Surf(SPARTA *sparta) : Pointers(sparta)
   asf_defect_input_type = 0;
   asf_defect_density = 0;
   asf_defect_freq = MAXSMALLINT;
+
   // SS start
   asf_defect_x = 0;
   asf_defect_y = 0;
   asf_defect_z = 0;
   // SS end
+
   asf_init_val = 0;
   asf_site_factor = 1;
 
@@ -389,6 +393,11 @@ void Surf::init()
 
   for (int i = 0; i < nsc; i++) sc[i]->init();
   for (int i = 0; i < nsr; i++) sr[i]->init();
+
+  // SGK initialize RNG
+  random = new RanKnuth(update->ranmaster->uniform());
+  rand_seed = update->ranmaster->uniform();
+  random->reset(rand_seed,comm->me,100);
 
   // if first run after reading a restart file,
   // delete any custom surf attributes that have not been re-defined
@@ -1113,6 +1122,7 @@ void Surf::assign_line_asf_init()
   }
 
 
+
   // ********** Based on single defect input - SS ********** //
   
   else if (asf_defect_input_type == 2) {
@@ -1165,6 +1175,7 @@ void Surf::assign_line_asf_init()
       printf("\tTotal active surface length: %f\n\n",surf_len_active);
     }
   }
+
 
 
   else error->all(FLERR,"Invalid ASF defect input type");
@@ -1228,14 +1239,17 @@ void Surf::assign_tri_asf_init()
   // ********** Now choosing and assigning the surface elements with active sites - multiple methods *********** //
   // ********** Based on frequency - SS ********** //
   if (asf_defect_input_type == 0) {
+
     int surfcell_count_total = 0;
     int surf_count_total = 0;
     int surfcell_count_active = 0;
+
     int surf_count_active = 0;
     double surf_area_curr = 0;
     double surf_len_curr = 0;
     double surf_area_total = 0; // total surface area variable
     double surf_area_active = 0; // total active surface area
+
     // int surf_shuffler = int(random->uniform()*1000); //Shuffle the surfaces so that random surfaces get initialized to a defective one 
     
     //int surf_shuffler = 177; //Shuffle the surfaces so that random surfaces get initialized to a defective one 
@@ -1388,9 +1402,11 @@ void Surf::assign_tri_asf_init()
 
 
 
+
   // ********** Based on single defect - SS ********** //
 
   else if (asf_defect_input_type == 2) {  
+
     int surf_count_total = 0;
     int surf_count_active = 0;
     double surf_len_curr = 0;
@@ -1407,14 +1423,17 @@ void Surf::assign_tri_asf_init()
       for (int j = 0; j < cells[icell].nsurf; j++) {
 
         int isurf = cells[icell].csurfs[j];
+
         double mean_x = (tris[isurf].p1[0]+tris[isurf].p2[0]+tris[isurf].p3[0])/3;
         double mean_y = (tris[isurf].p1[1]+tris[isurf].p2[1]+tris[isurf].p3[1])/3;
         double mean_z = (tris[isurf].p1[2]+tris[isurf].p2[2]+tris[isurf].p3[2])/3;
         // printf("Defect coords x=%f, y=%f, z=%f\n",mean_x,mean_y,mean_z);
 
+
         surf_count_total += 1;
         surf_area_curr = tri_size(isurf,surf_len_curr);
         surf_area_total += surf_area_curr;
+
 
         if (abs(mean_x-surf->asf_defect_x)>0.5) continue;
         else if (abs(mean_y-surf->asf_defect_y)>0.5) continue;
@@ -1423,6 +1442,7 @@ void Surf::assign_tri_asf_init()
         // surf_defects_curr = surf_area_curr*surf->asf_defect_density;
 
         // if (random->uniform() > surf_defects_curr) continue;
+
         //if (0.1 > surf_defects_curr) continue;
 
         grid->assign_cell_asf_init(icell);
@@ -1430,6 +1450,7 @@ void Surf::assign_tri_asf_init()
         surf_count_active += 1;
         surf_area_active += surf_area_curr;
         tris[isurf].active_site_fraction = cinfo[icell].active_site_fraction;
+
         printf("Active site #%d: x=%f, y=%f, z=%f\n",surf_count_active,tris[isurf].p1[0],tris[isurf].p1[1],tris[isurf].p1[2]);  
       }
     }
@@ -1522,18 +1543,23 @@ void Surf::assign_tri_asf_init()
       }
       surfcell_count_total += 1;
       // int icell = defects[i];
+
     }
     
     if (me == 0) {
       printf("\nActive site fraction (ASF) module - surface information\n");
       printf("\tTotal number of surfaces: %d\n",surf_count_total);
+
       printf("\tNumber of cells with active surfaces: %d\n",surfcell_count_active);
+
       printf("\tNumber of surfaces with active sites: %d\n",surf_count_active);
       printf("\tTotal surface area: %f\n",surf_area_total);
       printf("\tTotal active surface area: %f\n\n",surf_area_active);
     }
   }
+
   
+
 
   else error->all(FLERR,"Invalid ASF defect input type");
 

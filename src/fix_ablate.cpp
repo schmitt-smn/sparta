@@ -681,6 +681,7 @@ void FixAblate::create_surfs(int outflag)
   // Cut3d *cut3d = new Cut3d(sparta);
   // Cut2d *cut2d = NULL;
 
+
   Grid::ChildCell *cells = grid->cells;
   Grid::ChildInfo *cinfo = grid->cinfo;
   Grid::SplitInfo *sinfo = grid->sinfo;
@@ -1026,7 +1027,9 @@ void FixAblate::propagate_cell_asf()
   // also set proclist and locallist for each sent datum
 
   int nsend_prop=0;
+
   thresh = 150.0;
+
 
   for (int icell = 0; icell < nglocal; icell++) {
     if (!(cinfo[icell].mask & groupbit)) continue;

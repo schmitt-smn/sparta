@@ -193,6 +193,8 @@ Grid::~Grid()
   delete csubs;
   delete hash;
 
+  //delete random; // SGK
+
   memory->sfree(ename);
   memory->destroy(etype);
   memory->destroy(esize);

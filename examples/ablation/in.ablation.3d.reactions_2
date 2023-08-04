@@ -13,8 +13,8 @@ global              gridcut 0.0 comm/sort yes
 
 boundary	    o r r
 
-create_box  	    0 20 0 20 0 20
-create_grid 	    20 20 20 block * * *
+create_box  	    0 100 0 100 0 100
+create_grid 	    100 100 100 block * * *
 
 balance_grid        rcb cell
 
@@ -33,9 +33,9 @@ compute             10 react/isurf/grid all 2
 global              surfs implicit
 
 fix                 ablate ablate all 1 1.0 c_10[1]
-read_isurf          all 20 20 20 binary.21x21x21 99.5 ablate
+#read_isurf          all 20 20 20 binary.21x21x21 99.5 ablate
 
-#read_isurf          all 100 100 100 fibers-101x101x101.binary 127.5 ablate
+read_isurf          all 100 100 100 fibers-101x101x101.binary 127.5 ablate
 
 surf_modify         all collide 1 react 2
 
@@ -53,4 +53,4 @@ timestep 	    1e-3
 
 stats		    10
 stats_style	    step cpu np nscoll nsreact f_ablate
-run 		    200
+run 		    100
